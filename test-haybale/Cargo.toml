@@ -1,0 +1,8 @@
+[package]
+name = "test-haybale"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+haybale = { version = "*", features = ["llvm-14"] }
+llvm-ir = "0.8.2"
