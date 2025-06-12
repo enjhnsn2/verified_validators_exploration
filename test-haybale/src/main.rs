@@ -70,11 +70,17 @@ fn main() {
                     Ok(ReturnValue::Return(ptr))
                 }
 
-                Type::FuncType { .. } => {
-                    // Function types as return values are function pointers
-                    let sym_name = format!("funcptr_{}", func_name);
-                    let ptr = state.new_bv_with_name(sym_name.into(), pointer_size as u32)?;
-                    Ok(ReturnValue::Return(ptr))
+                Type::FuncType {
+                    result_type,
+                    param_types,
+                    is_var_arg,
+                } => {
+                    todo!();
+                    // // Function types as return values are function pointers
+                    // let result_size = get_bits_from_type(&result_type, pointer_size as u64);
+                    // let sym_name = format!("funcptr_{}", func_name);
+                    // let ptr = state.new_bv_with_name(sym_name.into(), result_size as u32)?;
+                    // Ok(ReturnValue::Return(ptr))
                 }
 
                 Type::VectorType {
@@ -122,15 +128,17 @@ fn main() {
                 }
 
                 Type::X86_MMXType => {
-                    let sym_name = format!("mmx_{}", func_name);
-                    let val = state.new_bv_with_name(sym_name.into(), 64)?;
-                    Ok(ReturnValue::Return(val))
+                    todo!();
+                    // let sym_name = format!("mmx_{}", func_name);
+                    // let val = state.new_bv_with_name(sym_name.into(), 64)?;
+                    // Ok(ReturnValue::Return(val))
                 }
 
                 Type::X86_AMXType => {
-                    let sym_name = format!("amx_{}", func_name);
-                    let val = state.new_bv_with_name(sym_name.into(), 8192)?;
-                    Ok(ReturnValue::Return(val))
+                    todo!();
+                    // let sym_name = format!("amx_{}", func_name);
+                    // let val = state.new_bv_with_name(sym_name.into(), 8192)?;
+                    // Ok(ReturnValue::Return(val))
                 }
 
                 Type::MetadataType => Err(Error::OtherError("Cannot return metadata type".into())),
