@@ -2,46 +2,13 @@ use haybale::{
     Config, Error, Project, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall,
     symex_function,
 };
-use llvm_ir::{Type, types::FPType};
+use llvm_ir::Type;
 
-fn get_bits_from_type(type_of: &Type, pointer_size: u64) -> u64 {
-    match type_of {
-        Type::VoidType => 0,
-        Type::IntegerType { bits } => *bits as u64,
-        Type::PointerType { .. } => pointer_size,
-        Type::FPType(fp_type) => match fp_type {
-            FPType::Half => 16,
-            FPType::BFloat => 16,
-            FPType::Single => 32,
-            FPType::Double => 64,
-            FPType::FP128 => 128,
-            FPType::X86_FP80 => 80,
-            FPType::PPC_FP128 => 128,
-        },
-        Type::FuncType { .. } => pointer_size,
-        Type::VectorType {
-            element_type,
-            num_elements,
-            ..
-        }
-        | Type::ArrayType {
-            element_type,
-            num_elements,
-        } => get_bits_from_type(&element_type, pointer_size) * *num_elements as u64,
-        Type::StructType { element_types, .. } => element_types
-            .iter()
-            .map(|e| get_bits_from_type(e, pointer_size))
-            .sum(),
-        Type::NamedStructType { .. } => pointer_size, // ???
-        Type::X86_MMXType => todo!(),
-        Type::X86_AMXType => todo!(),
-        Type::MetadataType => panic!("Cannot return metadata type"),
-        Type::LabelType => panic!("Cannot return label type"),
-        Type::TokenType => panic!("Cannot return token type"),
-    }
-}
+mod types;
+use types::get_bits_from_type;
 
 fn main() {
+    // Maps function calls to symbolic return values
     let binding =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
             let func_type = state.type_of(call);
@@ -71,9 +38,9 @@ fn main() {
                 }
 
                 Type::FuncType {
-                    result_type,
-                    param_types,
-                    is_var_arg,
+                    result_type: _,
+                    param_types: _,
+                    is_var_arg: _,
                 } => {
                     todo!();
                     // // Function types as return values are function pointers
@@ -156,8 +123,9 @@ fn main() {
 
     let project = Project::from_bc_path("../examples/test_verify_arrays.bc").unwrap();
     let mut em = symex_function(
-        // "sandbox_array_index_checked",
-        "sandbox_array_index_unchecked_unsafe",
+        "sandbox_array_index_checked",
+        // "sandbox_array_index_unchecked_safe",
+        //"sandbox_array_index_unchecked_unsafe",
         &project,
         config,
         None,
@@ -173,7 +141,7 @@ fn main() {
                 haybale::ReturnValue::Abort => println!("Aborts"),
             },
             Err(e) => {
-                // println!("{}", e);
+                println!("{}", e);
                 break;
             } // em.state().full_error_message_with_context(e)),
         }
