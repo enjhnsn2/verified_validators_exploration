@@ -6,9 +6,9 @@ use llvm_ir::{Type, types::FPType};
 
 fn get_bits_from_type(type_of: &Type, pointer_size: u64) -> u64 {
     match type_of {
-        Type::VoidType => 0, // void has no size
+        Type::VoidType => 0,
         Type::IntegerType { bits } => *bits as u64,
-        Type::PointerType { .. } => pointer_size, // Pointers are always pointer_size, not pointee size
+        Type::PointerType { .. } => pointer_size,
         Type::FPType(fp_type) => match fp_type {
             FPType::Half => 16,
             FPType::BFloat => 16,
@@ -32,9 +32,9 @@ fn get_bits_from_type(type_of: &Type, pointer_size: u64) -> u64 {
             .iter()
             .map(|e| get_bits_from_type(e, pointer_size))
             .sum(),
-        Type::NamedStructType { .. } => pointer_size, // Conservative estimate
-        Type::X86_MMXType => 64,
-        Type::X86_AMXType => 8192, // 8KB
+        Type::NamedStructType { .. } => pointer_size, // ???
+        Type::X86_MMXType => todo!(),
+        Type::X86_AMXType => todo!(),
         Type::MetadataType => panic!("Cannot return metadata type"),
         Type::LabelType => panic!("Cannot return label type"),
         Type::TokenType => panic!("Cannot return token type"),
