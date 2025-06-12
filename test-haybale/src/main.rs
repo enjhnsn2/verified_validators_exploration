@@ -148,8 +148,8 @@ fn main() {
 
     let project = Project::from_bc_path("../examples/test_verify_arrays.bc").unwrap();
     let mut em = symex_function(
-        "sandbox_array_index_checked",
-        // "sandbox_array_index_unchecked_unsafe",
+        // "sandbox_array_index_checked",
+        "sandbox_array_index_unchecked_unsafe",
         &project,
         config,
         None,
@@ -164,8 +164,10 @@ fn main() {
                 haybale::ReturnValue::Throw(e) => println!("Throws error {e:?}"),
                 haybale::ReturnValue::Abort => println!("Aborts"),
             },
-            Err(e) => println!("{}", e),
-            // em.state().full_error_message_with_context(e)),
+            Err(e) => {
+                // println!("{}", e);
+                break;
+            } // em.state().full_error_message_with_context(e)),
         }
     }
 }
