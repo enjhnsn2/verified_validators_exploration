@@ -1,3 +1,6 @@
 [submodule "rlbox"]
 	path = rlbox
 	url = git@github.com:PLSysSec/rlbox.git
+[submodule "haybale"]
+	path = haybale
+	url = git@github.com:PLSysSec/haybale.git

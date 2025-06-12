@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-haybale = { version = "0.7.2", features = ["llvm-14", "vendor-boolector"] }
+haybale = { path = "../haybale", features = ["llvm-14", "vendor-boolector"] }
 llvm-ir = "0.8.2"
