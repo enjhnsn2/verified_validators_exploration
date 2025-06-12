@@ -7,7 +7,10 @@ use llvm_ir::Type;
 mod types;
 use types::get_bits_from_type;
 
+
 fn main() {
+    env_logger::init();
+
     // Maps function calls to symbolic return values
     let binding =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
@@ -118,7 +121,7 @@ fn main() {
         };
 
     let mut config: Config<DefaultBackend> = Config::default();
-    config.function_hooks.add_default_hook(&binding);
+    config.function_hooks.add_uc_hook(&binding);
     config.loop_bound = 1000;
 
     let project = Project::from_bc_path("../examples/test_verify_arrays.bc").unwrap();
