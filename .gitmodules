@@ -3,4 +3,4 @@
 	url = git@github.com:PLSysSec/rlbox.git
 [submodule "haybale"]
 	path = haybale
-	url = git@github.com:PLSysSec/haybale.git
+	url = git@github.com:enjhnsn2/haybale.git
