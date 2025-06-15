@@ -124,11 +124,11 @@ fn main() {
     config.function_hooks.add_uc_hook(&binding);
     config.loop_bound = 1000;
 
-    let project = Project::from_bc_path("../examples/test_verify_arrays.bc").unwrap();
+    let project = Project::from_bc_path("../examples/host.bc").unwrap();
     let mut em = symex_function(
-        "sandbox_array_index_checked",
+        // "sandbox_array_index_checked",
         // "sandbox_array_index_unchecked_safe",
-        //"sandbox_array_index_unchecked_unsafe",
+        "sandbox_array_index_unchecked_unsafe",
         &project,
         config,
         None,
