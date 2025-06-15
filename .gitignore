@@ -2,3 +2,4 @@
 *.lock
 *.bc
 *.ll
+*.so
