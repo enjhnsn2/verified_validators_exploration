@@ -1,27 +1,17 @@
 CXX = clang++-14
 CC = clang-14
 
-# Flags for LLVM bitcode generation
-LLVM_CXXFLAGS = -std=c++17 -Wall -Wextra \
-           -I../rlbox/code/include \
-           -I. \
-           -emit-llvm \
-           -fno-exceptions \
-           -O0 \
-		   -g
+# Common flags
+COMMON_FLAGS = -Wall -Wextra -O0 -g
+INCLUDE_FLAGS = -I../rlbox/code/include -I.
 
-# Flags for native compilation
-NATIVE_CXXFLAGS = -std=c++17 -Wall -Wextra \
-           -I../rlbox/code/include \
-           -I. \
-           -fno-exceptions \
-           -O0 \
-		   -g
+# LLVM bitcode flags
+LLVM_CXXFLAGS = -std=c++17 $(COMMON_FLAGS) $(INCLUDE_FLAGS) -emit-llvm -fno-exceptions
+LLVM_CFLAGS = $(COMMON_FLAGS) -emit-llvm -fPIC
 
-# Flags for C compilation with LLVM bitcode
-LLVM_CFLAGS = -Wall -Wextra -emit-llvm -fPIC -O0 -g
-
-CFLAGS = -Wall -Wextra -fPIC -O0 -g
+# Native compilation flags
+NATIVE_CXXFLAGS = -std=c++17 $(COMMON_FLAGS) $(INCLUDE_FLAGS) -fno-exceptions
+NATIVE_CFLAGS = $(COMMON_FLAGS) -fPIC
 
 # Guest library targets
 GUEST_LIB = libguest.so
@@ -36,14 +26,15 @@ HOST_LL = host.ll
 HOST_SRCS = host.cpp
 HOST_OBJ = host.o
 
-.PHONY: all build run clean
+.PHONY: all build clean run_native
 
 all: build
 
 build: $(GUEST_LIB) $(GUEST_BC) $(GUEST_LL) $(HOST) $(HOST_BC) $(HOST_LL)
 
+# Guest library rules
 $(GUEST_LIB): $(GUEST_SRCS)
-	$(CC) $(CFLAGS) -shared -o $@ $^
+	$(CC) $(NATIVE_CFLAGS) -shared -o $@ $^
 
 $(GUEST_BC): $(GUEST_SRCS)
 	$(CC) $(LLVM_CFLAGS) -c -o $@ $^
@@ -51,6 +42,7 @@ $(GUEST_BC): $(GUEST_SRCS)
 $(GUEST_LL): $(GUEST_SRCS)
 	$(CC) $(LLVM_CFLAGS) -S -o $@ $^
 
+# Host program rules
 $(HOST_BC): $(HOST_SRCS)
 	$(CXX) $(LLVM_CXXFLAGS) -c -o $@ $^
 
@@ -67,10 +59,4 @@ run_native: $(HOST)
 	LD_LIBRARY_PATH=. ./$(HOST)
 
 clean:
-	rm -f $(GUEST_LIB)
-	rm -f $(GUEST_BC)
-	rm -f $(GUEST_LL)
-	rm -f $(HOST)
-	rm -f $(HOST_BC)
-	rm -f $(HOST_LL)
-	rm -f $(HOST_OBJ)
+	rm -f $(GUEST_LIB) $(GUEST_BC) $(GUEST_LL) $(HOST) $(HOST_BC) $(HOST_LL) $(HOST_OBJ)
