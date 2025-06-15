@@ -25,7 +25,7 @@ void hello_cb(rlbox_sandbox_guest& _, tainted_guest<const char*> str) {
   auto checked_string =
     str.copy_and_verify_string([](unique_ptr<char[]> val) {
         release_assert(val != nullptr && strlen(val.get()) < 1024, "val is null or greater than 1024\n");
-        return move(val);
+        return val;
     });
   printf("hello_cb: %s\n", checked_string.get());
 }
@@ -74,8 +74,6 @@ int main() {
 
 
 // Data transfer test cases (no sandbox control flow)
-
-/// This file contains a series of functions to test our sandbox data validation strategy
 
 
 // This function should flag unsafety, as we don't check the data from the sandbox
