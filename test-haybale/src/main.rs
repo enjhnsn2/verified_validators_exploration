@@ -13,6 +13,7 @@ fn main() {
     // Maps function calls to symbolic return values
     let default_uc_hook =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
+            println!("YO");
             let func_type = state.type_of(call);
             let pointer_size = state.proj.pointer_size_bits();
             let func_name = &state.cur_loc.func.name;
@@ -122,7 +123,6 @@ fn main() {
     // Hook for UNSAFE_unverified() - returns the underlying value without verification
     let unsafe_unverified_hook =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
-            println!("unsafe unverif");
             let call_args = call.get_arguments();
 
             if call_args.len() < 1 {
@@ -165,55 +165,55 @@ fn main() {
         };
 
     // try to add hook for precondition
-    let sandboxed_index_hook = |state: &mut State<DefaultBackend>,
-                                call: &dyn IsCall|
-     -> Result<ReturnValue<_>, Error> {
-        let call_args = call.get_arguments();
+    let sandboxed_index_hook =
+        |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
+            let call_args = call.get_arguments();
 
-        if call_args.len() < 2 {
-            return Err(Error::OtherError(
-                "Insufficient arguments for array access".into(),
-            ));
-        }
+            if call_args.len() < 2 {
+                return Err(Error::OtherError(
+                    "Insufficient arguments for array access".into(),
+                ));
+            }
 
-        let index_operand = &call_args[1].0;
-        let index_bv = match state.operand_to_bv(index_operand) {
-            Ok(bv) => bv,
-            Err(e) => return Err(e),
+            let index_operand = &call_args[1].0;
+            let index_bv = match state.operand_to_bv(index_operand) {
+                Ok(bv) => bv,
+                Err(e) => return Err(e),
+            };
+
+            // Read the integer value from the pointer (32 bits for i32)
+            let index_value_bv = state.read(&index_bv, 32)?;
+
+            let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
+
+            // Bounds check: hardcoding for array size of 4 (int[4])
+            const ARRAY_SIZE: i64 = 4;
+            if index_value < 0 || index_value >= ARRAY_SIZE {
+                return Err(Error::OtherError(format!(
+                    "Array index {} out of bounds [0, {})",
+                    index_value, ARRAY_SIZE
+                )));
+            }
+
+            // println!(
+            //     "Bounds check passed: index {} is within bounds [0, {})",
+            //     index_value, ARRAY_SIZE
+            // );
+
+            // If bounds check passes, perform the array access manually
+            let array_operand = &call_args[0].0;
+            let array_base_bv = match state.operand_to_bv(array_operand) {
+                Ok(bv) => bv,
+                Err(e) => return Err(e),
+            };
+
+            const ELEMENT_SIZE: u32 = 4;
+            let offset = index_value * ELEMENT_SIZE as i64;
+            let offset_bv = state.bv_from_i64(offset, array_base_bv.get_width());
+            let element_addr_bv = array_base_bv.add(&offset_bv);
+
+            Ok(ReturnValue::Return(element_addr_bv))
         };
-
-        // Read the integer value from the pointer (32 bits for i32)
-        let index_value_bv = state.read(&index_bv, 32)?;
-
-        let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
-
-        // Bounds check: hardcoding for array size of 4 (int[4])
-        const ARRAY_SIZE: i64 = 4;
-        if index_value < 0 || index_value >= ARRAY_SIZE {
-            return Err(Error::OtherError(format!(
-                "Array index {} out of bounds [0, {})",
-                index_value, ARRAY_SIZE
-            )));
-        }
-
-        println!(
-            "Bounds check passed: index {} is within bounds [0, {})",
-            index_value, ARRAY_SIZE
-        );
-
-        // If bounds check passes, perform the array access manually
-        let array_operand = &call_args[0].0;
-        let array_base_bv = match state.operand_to_bv(array_operand) {
-            Ok(bv) => bv,
-            Err(e) => return Err(e),
-        };
-
-        const ELEMENT_SIZE: u32 = 4;
-        let offset_bv = index_bv.mul(&state.bv_from_u32(ELEMENT_SIZE as u32, index_bv.get_width()));
-        let element_addr_bv = array_base_bv.add(&offset_bv);
-
-        Ok(ReturnValue::Return(element_addr_bv))
-    };
 
     let std_array_index_hook =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
@@ -228,10 +228,8 @@ fn main() {
             // Get the index value from the second argument
             let index_operand = &call_args[1].0;
             let index_bv = state.operand_to_bv(index_operand)?;
-
-            // Read the integer value from the pointer (32 bits for i32)
-            let index_value_bv = state.read(&index_bv, 32)?;
-            let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
+            println!("INDEX_VALUE_BV: {index_bv:?}");
+            let index_value = index_bv.as_u64().expect("OOPPPSSSS") as i64;
 
             // Bounds check: array size is 4
             const ARRAY_SIZE: i64 = 4;
@@ -242,10 +240,10 @@ fn main() {
                 )));
             }
 
-            println!(
-                "std::array bounds check passed: index {} is within bounds [0, {})",
-                index_value, ARRAY_SIZE
-            );
+            // println!(
+            //     "std::array bounds check passed: index {} is within bounds [0, {})",
+            //     index_value, ARRAY_SIZE
+            // );
 
             // Get the array base address (first argument)
             let array_operand = &call_args[0].0;
@@ -265,7 +263,6 @@ fn main() {
     let rlbox_deref_hook = |state: &mut State<DefaultBackend>,
                             call: &dyn IsCall|
      -> Result<ReturnValue<_>, Error> {
-        println!("DEREF");
         let call_args = call.get_arguments();
 
         if call_args.len() < 1 {
@@ -277,7 +274,6 @@ fn main() {
         // Get the tainted pointer object (this)
         let tainted_ptr_operand = &call_args[0].0;
         let tainted_ptr_bv = state.operand_to_bv(tainted_ptr_operand)?;
-        println!("Reading from: {tainted_ptr_bv:?}");
 
         // Read the actual array pointer from the tainted pointer object
         let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits() as u32)?;
@@ -292,12 +288,21 @@ fn main() {
             let array_size_bits = 4 * 32 as u64; // 4 integers * 32 bits each
             let concrete_array_ptr = state.allocate(array_size_bits);
 
-            println!(
-                "malloc_in_sandbox allocated concrete array at: {:?}",
-                concrete_array_ptr
-            );
-
             Ok(ReturnValue::Return(concrete_array_ptr))
+        };
+
+    let copy_and_verify_hook =
+        |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
+            let args = call.get_arguments();
+
+            let tainted_operand = &args[0].0;
+            let tainted_bv = state.operand_to_bv(tainted_operand)?;
+
+            let value_bv = state.read(&tainted_bv, 32)?;
+
+            // TODO: WHERE TF IS THE LAMBDA????
+
+            Ok(ReturnValue::Return(value_bv))
         };
 
     let mut config: Config<DefaultBackend> = Config::default();
@@ -333,14 +338,19 @@ fn main() {
         "rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>",
         &malloc_in_sandbox_hook,
     );
+    // hook for copy and verify
+    config.function_hooks.add_cpp_demangled(
+        "rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>",
+        &copy_and_verify_hook
+    );
 
     config.loop_bound = 1000;
 
     let project = Project::from_bc_path("../examples/host.bc").unwrap();
     let mut em = symex_function(
-        // "sandbox_array_index_checked",
+        "sandbox_array_index_checked",
         // "sandbox_array_index_unchecked_safe",
-        "sandbox_array_index_unchecked_unsafe",
+        // "sandbox_array_index_unchecked_unsafe",
         &project,
         config,
         None,
