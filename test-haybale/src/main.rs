@@ -1,7 +1,5 @@
 use haybale::{
-    Config, Error, Project, ReturnValue, State,
-    backend::{BV, DefaultBackend},
-    function_hooks::IsCall,
+    Config, Error, Project, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall,
     symex_function,
 };
 use llvm_ir::Type;
@@ -121,9 +119,10 @@ fn main() {
             ret
         };
 
-    // Hook for UNSAFE_unverified() - this returns the underlying value without verification
+    // Hook for UNSAFE_unverified() - returns the underlying value without verification
     let unsafe_unverified_hook =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
+            println!("unsafe unverif");
             let call_args = call.get_arguments();
 
             if call_args.len() < 1 {
@@ -132,83 +131,37 @@ fn main() {
                 ));
             }
 
-            // Get the tainted value (first argument, which is 'this')
             let tainted_operand = &call_args[0].0;
-            let tainted_bv = match state.operand_to_bv(tainted_operand) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            let tainted_bv = state.operand_to_bv(tainted_operand)?;
 
-            // For UNSAFE_unverified, we just read the underlying value
-            // The tainted wrapper typically contains the actual value
-            let value_bv = match state.read(&tainted_bv, 32) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            // Read the actual integer value from the tainted_volatile object
+            let value_bv = state.read(&tainted_bv, 32)?;
 
-            println!("UNSAFE_unverified returning: {:?}", value_bv);
             Ok(ReturnValue::Return(value_bv))
         };
 
-    // Hook for rlbox sandbox array assignment operator[] (the one that sets values)
-    let rlbox_array_assign_hook =
+    // hook for (*array[0] = ...)
+    let rlbox_assign_hook =
         |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
             let call_args = call.get_arguments();
 
             if call_args.len() < 2 {
                 return Err(Error::OtherError(
-                    "Array assignment needs at least 2 arguments".into(),
+                    "Assignment needs at least 2 arguments".into(),
                 ));
             }
 
-            // This is similar to your existing hook but for assignment
-            // Get the index value from the second argument
-            let index_operand = &call_args[1].0;
-            let index_bv = match state.operand_to_bv(index_operand) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            let target_operand = &call_args[0].0;
+            let target_bv = state.operand_to_bv(target_operand)?;
 
-            // Read the index value
-            let index_value_bv = match state.read(&index_bv, 32) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            let value_operand = &call_args[1].0;
+            let value_bv = state.operand_to_bv(value_operand)?;
 
-            let index_value = index_value_bv.as_u64().expect("Failed to convert index") as i32;
+            let actual_value = state.read(&value_bv, 32)?;
 
-            // Bounds check
-            const ARRAY_SIZE: i32 = 4;
-            if index_value < 0 || index_value >= ARRAY_SIZE {
-                return Err(Error::OtherError(format!(
-                    "Sandbox array assignment index {} out of bounds [0, {})",
-                    index_value, ARRAY_SIZE
-                )));
-            }
+            state.write(&target_bv, actual_value)?;
 
-            // Get the array base address
-            let array_operand = &call_args[0].0;
-            let array_base_bv = match state.operand_to_bv(array_operand) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
-
-            // Calculate element address
-            const ELEMENT_SIZE: u32 = 4;
-            let offset_bv = index_bv.mul(&state.bv_from_u32(ELEMENT_SIZE, index_bv.get_width()));
-            let element_addr_bv = array_base_bv.add(&offset_bv);
-
-            // Return the address for assignment
-            Ok(ReturnValue::Return(element_addr_bv))
-        };
-
-    // Hook for malloc_in_sandbox - returns a symbolic pointer to allocated memory
-    let malloc_in_sandbox_hook =
-        |state: &mut State<DefaultBackend>, call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
-            // Allocate 16 bytes for int32_t[4] array
-            let allocated_ptr = state.allocate(128 as u64); // 16 bytes = 128 bits
-            println!("malloc_in_sandbox allocated: {:?}", allocated_ptr);
-            Ok(ReturnValue::Return(allocated_ptr))
+            Ok(ReturnValue::Return(target_bv))
         };
 
     // try to add hook for precondition
@@ -217,16 +170,12 @@ fn main() {
      -> Result<ReturnValue<_>, Error> {
         let call_args = call.get_arguments();
 
-        // Extract the index argument (second argument)
-        // Based on your output, this should be the second LocalOperand
         if call_args.len() < 2 {
             return Err(Error::OtherError(
                 "Insufficient arguments for array access".into(),
             ));
         }
 
-        // Get the index value from the second argument
-        // Convert the operand to a BV for reading
         let index_operand = &call_args[1].0;
         let index_bv = match state.operand_to_bv(index_operand) {
             Ok(bv) => bv,
@@ -234,16 +183,12 @@ fn main() {
         };
 
         // Read the integer value from the pointer (32 bits for i32)
-        let index_value_bv = match state.read(&index_bv, 32) {
-            Ok(bv) => bv,
-            Err(e) => return Err(e),
-        };
+        let index_value_bv = state.read(&index_bv, 32)?;
 
-        // Convert BitVector to i32
-        let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i32;
+        let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
 
-        // Bounds check: array size is 4 (int[4])
-        const ARRAY_SIZE: i32 = 4;
+        // Bounds check: hardcoding for array size of 4 (int[4])
+        const ARRAY_SIZE: i64 = 4;
         if index_value < 0 || index_value >= ARRAY_SIZE {
             return Err(Error::OtherError(format!(
                 "Array index {} out of bounds [0, {})",
@@ -257,22 +202,16 @@ fn main() {
         );
 
         // If bounds check passes, perform the array access manually
-        // Get the array base address (first argument)
         let array_operand = &call_args[0].0;
         let array_base_bv = match state.operand_to_bv(array_operand) {
             Ok(bv) => bv,
             Err(e) => return Err(e),
         };
 
-        // Calculate the address of the indexed element
-        // For int[4], each element is 4 bytes (32 bits)
-        const ELEMENT_SIZE: u32 = 4; // bytes per int
+        const ELEMENT_SIZE: u32 = 4;
         let offset_bv = index_bv.mul(&state.bv_from_u32(ELEMENT_SIZE as u32, index_bv.get_width()));
         let element_addr_bv = array_base_bv.add(&offset_bv);
 
-        // Return the ADDRESS of the element (reference), not the value
-        // operator[] returns a reference, so we return the pointer to the element
-        println!("{element_addr_bv:?}");
         Ok(ReturnValue::Return(element_addr_bv))
     };
 
@@ -288,28 +227,14 @@ fn main() {
 
             // Get the index value from the second argument
             let index_operand = &call_args[1].0;
-            let index_bv = match state.operand_to_bv(index_operand) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            let index_bv = state.operand_to_bv(index_operand)?;
 
-            // Try to use the index directly first (it might be a value, not a pointer)
-            let index_value = if index_bv.get_width() <= 32 {
-                // Likely a direct integer value
-                index_bv.as_u64().expect("Failed to convert index") as i32
-            } else {
-                // Might be a pointer to an integer, try reading from it
-                match state.read(&index_bv, 32) {
-                    Ok(value_bv) => value_bv.as_u64().expect("Failed to convert index") as i32,
-                    Err(_) => {
-                        // If reading fails, treat it as a direct value
-                        index_bv.as_u64().expect("Failed to convert index") as i32
-                    }
-                }
-            };
+            // Read the integer value from the pointer (32 bits for i32)
+            let index_value_bv = state.read(&index_bv, 32)?;
+            let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
 
             // Bounds check: array size is 4
-            const ARRAY_SIZE: i32 = 4;
+            const ARRAY_SIZE: i64 = 4;
             if index_value < 0 || index_value >= ARRAY_SIZE {
                 return Err(Error::OtherError(format!(
                     "std::array index {} out of bounds [0, {})",
@@ -324,10 +249,7 @@ fn main() {
 
             // Get the array base address (first argument)
             let array_operand = &call_args[0].0;
-            let array_base_bv = match state.operand_to_bv(array_operand) {
-                Ok(bv) => bv,
-                Err(e) => return Err(e),
-            };
+            let array_base_bv = state.operand_to_bv(array_operand)?;
 
             // Calculate the address of the indexed element
             const ELEMENT_SIZE: u32 = 4; // bytes per int
@@ -340,17 +262,58 @@ fn main() {
             Ok(ReturnValue::Return(element_addr_bv))
         };
 
+    let rlbox_deref_hook = |state: &mut State<DefaultBackend>,
+                            call: &dyn IsCall|
+     -> Result<ReturnValue<_>, Error> {
+        println!("DEREF");
+        let call_args = call.get_arguments();
+
+        if call_args.len() < 1 {
+            return Err(Error::OtherError(
+                "operator* needs at least 1 argument".into(),
+            ));
+        }
+
+        // Get the tainted pointer object (this)
+        let tainted_ptr_operand = &call_args[0].0;
+        let tainted_ptr_bv = state.operand_to_bv(tainted_ptr_operand)?;
+        println!("Reading from: {tainted_ptr_bv:?}");
+
+        // Read the actual array pointer from the tainted pointer object
+        let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits() as u32)?;
+
+        // Return the array pointer (this is what (*sandbox_array) should return)
+        Ok(ReturnValue::Return(array_ptr_bv))
+    };
+
+    let malloc_in_sandbox_hook =
+        |state: &mut State<DefaultBackend>, _call: &dyn IsCall| -> Result<ReturnValue<_>, Error> {
+            // Allocate concrete memory for a 4-element int array
+            let array_size_bits = 4 * 32 as u64; // 4 integers * 32 bits each
+            let concrete_array_ptr = state.allocate(array_size_bits);
+
+            println!(
+                "malloc_in_sandbox allocated concrete array at: {:?}",
+                concrete_array_ptr
+            );
+
+            Ok(ReturnValue::Return(concrete_array_ptr))
+        };
+
     let mut config: Config<DefaultBackend> = Config::default();
     config.function_hooks.add_uc_hook(&default_uc_hook);
 
     // indexing into sandboxed array
-    config.function_hooks.add_cpp_demangled("rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>", &sandboxed_index_hook);
+    config.function_hooks.add_cpp_demangled(
+        "rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>",
+        &sandboxed_index_hook
+    );
     // indexing into std lib array
     config.function_hooks.add_cpp_demangled(
         "std::__1::array<int, (unsigned long)4>::operator[][abi:un170006]",
         &std_array_index_hook,
     );
-    // book for unsafe verified
+    // hook for unsafe verified
     config.function_hooks.add_cpp_demangled(
         "rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::UNSAFE_unverified",
         &unsafe_unverified_hook,
@@ -358,7 +321,17 @@ fn main() {
     // hook for assignment of rlbox vals
     config.function_hooks.add_cpp_demangled(
         "rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>",
-        &rlbox_array_assign_hook,
+        &rlbox_assign_hook,
+    );
+    // hook for deref of rlbox vals
+    config.function_hooks.add_cpp_demangled(
+        "rlbox::tainted_base_impl<rlbox::tainted, int (*) [4], rlbox::rlbox_test_sandbox>::operator*",
+        &rlbox_deref_hook
+    );
+    // malloc array in sandbox hook
+    config.function_hooks.add_cpp_demangled(
+        "rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>",
+        &malloc_in_sandbox_hook,
     );
 
     config.loop_bound = 1000;
