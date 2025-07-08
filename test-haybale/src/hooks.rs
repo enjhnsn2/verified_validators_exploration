@@ -3,6 +3,9 @@ use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::Type;
 
+/// EXAMPLE:   auto index = (*sandbox_array)[0].UNSAFE_unverified();
+/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::UNSAFE_unverified
+// TODO: make generic for any type (currently hardcoded to int)
 fn unsafe_unverified_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -24,6 +27,7 @@ fn unsafe_unverified_hook(
     Ok(ReturnValue::Return(value_bv))
 }
 
+/// default hook for symbolizing return values for functions without explicit hooks
 fn default_uc_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -123,6 +127,8 @@ fn default_uc_hook(
     ret
 }
 
+// TODO: make generic for any type (currently hardcoded to int)
+/// HOOKED_ON: rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>
 fn rlbox_assign_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -148,6 +154,8 @@ fn rlbox_assign_hook(
     Ok(ReturnValue::Return(target_bv))
 }
 
+// TODO: make generic for any array size, any array type (currently hardcoded to int[4])
+/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>
 fn sandboxed_index_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -189,6 +197,8 @@ fn sandboxed_index_hook(
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
+// TODO: make generic for any array size, any array type, any index type (currently hardcoded to int, 4, unsigned long)
+/// HOOKED_ON: std::__1::array<int, (unsigned long)4>::operator[][abi:un170006]
 fn std_array_index_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -235,6 +245,8 @@ fn std_array_index_hook(
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
+// TODO: make generic for any pointer type (currently hardcoded to int (*) [4])
+/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted, int (*) [4], rlbox::rlbox_test_sandbox>::operator*
 fn rlbox_deref_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
@@ -258,6 +270,8 @@ fn rlbox_deref_hook(
     Ok(ReturnValue::Return(array_ptr_bv))
 }
 
+// TODO: make generic for any array size, any return type (currently hardcoded to int[4])
+/// HOOKED_ON: rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>
 fn malloc_in_sandbox_hook(
     state: &mut State<DefaultBackend>,
     _call: &dyn IsCall,
@@ -269,6 +283,9 @@ fn malloc_in_sandbox_hook(
     Ok(ReturnValue::Return(concrete_array_ptr))
 }
 
+// TODO: make generic for any return type (currently hardcoded to int)
+// TODO: figure out how to process the lambda?
+/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>
 fn copy_and_verify_hook(
     state: &mut State<DefaultBackend>,
     call: &dyn IsCall,
