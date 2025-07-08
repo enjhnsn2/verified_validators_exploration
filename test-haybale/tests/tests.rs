@@ -1,9 +1,13 @@
 use haybale::Project;
 use std::path::Path;
-
 use test_haybale::exec::symex_func_with_loop_bound;
-
 use std::sync::Once;
+
+
+// TODO: currently these tests just make sure that the symex doesn't crash 
+// We need to improve these tests so that they check that the symex has the correct final state 
+// e.g., that we return with the memory safety errors we expect (or if there are none, that the final state is safe)
+
 
 static INIT: Once = Once::new();
 
