@@ -11,7 +11,7 @@ fn symex_func_with_loop_bound(func_name: &str, project: &Project, loop_bound: us
 
     let mut em = symex_function(func_name, project, config, None).unwrap();
 
-    while let Some(path) = em.next() {
+    for path in em {
         match path {
             Ok(p) => match p {
                 haybale::ReturnValue::Return(r) => println!("Function returns {r:?}"),

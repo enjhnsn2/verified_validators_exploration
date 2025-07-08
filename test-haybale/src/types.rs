@@ -23,7 +23,7 @@ pub fn get_bits_from_type(type_of: &Type, pointer_size: u64) -> u64 {
         | Type::ArrayType {
             element_type,
             num_elements,
-        } => get_bits_from_type(&element_type, pointer_size) * *num_elements as u64,
+        } => get_bits_from_type(element_type, pointer_size) * *num_elements as u64,
         Type::StructType { element_types, .. } => element_types
             .iter()
             .map(|e| get_bits_from_type(e, pointer_size))

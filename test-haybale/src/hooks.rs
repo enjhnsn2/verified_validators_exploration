@@ -9,7 +9,7 @@ fn unsafe_unverified_hook(
 ) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
     let call_args = call.get_arguments();
 
-    if call_args.len() < 1 {
+    if call_args.is_empty() {
         return Err(Error::OtherError(
             "UNSAFE_unverified needs at least 1 argument".into(),
         ));
@@ -37,19 +37,19 @@ fn default_uc_hook(
 
         Type::IntegerType { bits } => {
             let sym_name = format!("int_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), *bits as u32)?;
+            let val = state.new_bv_with_name(sym_name.into(), { *bits })?;
             Ok(ReturnValue::Return(val))
         }
 
         Type::PointerType { pointee_type, .. } => {
             // For pointers, allocate memory for what they point to
-            let pointee_bits = get_bits_from_type(&pointee_type, pointer_size as u64);
+            let pointee_bits = get_bits_from_type(pointee_type, pointer_size as u64);
             let ptr = if pointee_bits > 0 {
                 state.allocate(pointee_bits)
             } else {
                 // For void pointers or zero-sized types, just return a symbolic pointer
                 let sym_name = format!("ptr_{}", func_name);
-                state.new_bv_with_name(sym_name.into(), pointer_size as u32)?
+                state.new_bv_with_name(sym_name.into(), pointer_size)?
             };
             Ok(ReturnValue::Return(ptr))
         }
@@ -67,7 +67,7 @@ fn default_uc_hook(
             num_elements,
             ..
         } => {
-            let element_bits = get_bits_from_type(&element_type, pointer_size as u64);
+            let element_bits = get_bits_from_type(element_type, pointer_size as u64);
             let total_bits = element_bits * (*num_elements as u64);
             let sym_name = format!("vec_{}", func_name);
             let val = state.new_bv_with_name(sym_name.into(), total_bits as u32)?;
@@ -78,7 +78,7 @@ fn default_uc_hook(
             element_type,
             num_elements,
         } => {
-            let element_bits = get_bits_from_type(&element_type, pointer_size as u64);
+            let element_bits = get_bits_from_type(element_type, pointer_size as u64);
             let total_bits = element_bits * (*num_elements as u64);
             let sym_name = format!("arr_{}", func_name);
             let val = state.new_bv_with_name(sym_name.into(), total_bits as u32)?;
@@ -161,10 +161,7 @@ fn sandboxed_index_hook(
     }
 
     let index_operand = &call_args[1].0;
-    let index_bv = match state.operand_to_bv(index_operand) {
-        Ok(bv) => bv,
-        Err(e) => return Err(e),
-    };
+    let index_bv = state.operand_to_bv(index_operand)?;
 
     // Read the integer value from the pointer (32 bits for i32)
     let index_value_bv = state.read(&index_bv, 32)?;
@@ -173,7 +170,7 @@ fn sandboxed_index_hook(
 
     // Bounds check: hardcoding for array size of 4 (int[4])
     const ARRAY_SIZE: i64 = 4;
-    if index_value < 0 || index_value >= ARRAY_SIZE {
+    if !(0..ARRAY_SIZE).contains(&index_value) {
         return Err(Error::OtherError(format!(
             "Array index {} out of bounds [0, {})",
             index_value, ARRAY_SIZE
@@ -182,10 +179,7 @@ fn sandboxed_index_hook(
 
     // If bounds check passes, perform the array access manually
     let array_operand = &call_args[0].0;
-    let array_base_bv = match state.operand_to_bv(array_operand) {
-        Ok(bv) => bv,
-        Err(e) => return Err(e),
-    };
+    let array_base_bv = state.operand_to_bv(array_operand)?;
 
     const ELEMENT_SIZE: u32 = 4;
     let offset = index_value * ELEMENT_SIZE as i64;
@@ -215,7 +209,7 @@ fn std_array_index_hook(
 
     // Bounds check: array size is 4
     const ARRAY_SIZE: i64 = 4;
-    if index_value < 0 || index_value >= ARRAY_SIZE {
+    if !(0..ARRAY_SIZE).contains(&index_value) {
         return Err(Error::OtherError(format!(
             "std::array index {} out of bounds [0, {})",
             index_value, ARRAY_SIZE
@@ -247,7 +241,7 @@ fn rlbox_deref_hook(
 ) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
     let call_args = call.get_arguments();
 
-    if call_args.len() < 1 {
+    if call_args.is_empty() {
         return Err(Error::OtherError(
             "operator* needs at least 1 argument".into(),
         ));
@@ -258,7 +252,7 @@ fn rlbox_deref_hook(
     let tainted_ptr_bv = state.operand_to_bv(tainted_ptr_operand)?;
 
     // Read the actual array pointer from the tainted pointer object
-    let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits() as u32)?;
+    let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits())?;
 
     // Return the array pointer (this is what (*sandbox_array) should return)
     Ok(ReturnValue::Return(array_ptr_bv))
@@ -269,7 +263,7 @@ fn malloc_in_sandbox_hook(
     _call: &dyn IsCall,
 ) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
     // Allocate concrete memory for a 4-element int array
-    let array_size_bits = 4 * 32 as u64; // 4 integers * 32 bits each
+    let array_size_bits = 4 * 32_u64; // 4 integers * 32 bits each
     let concrete_array_ptr = state.allocate(array_size_bits);
 
     Ok(ReturnValue::Return(concrete_array_ptr))
