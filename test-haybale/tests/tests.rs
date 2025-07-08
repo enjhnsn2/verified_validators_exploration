@@ -21,7 +21,6 @@ fn test_sandbox_array_index_unchecked_unsafe() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    println!("Testing sandbox_array_index_unchecked_unsafe function:");
     symex_func_with_loop_bound("sandbox_array_index_unchecked_unsafe", &project, loop_bound);
 }
 
@@ -32,7 +31,6 @@ fn test_sandbox_array_index_unchecked_safe() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    println!("Testing sandbox_array_index_unchecked_safe function:");
     symex_func_with_loop_bound("sandbox_array_index_unchecked_safe", &project, loop_bound);
 }
 
@@ -43,6 +41,5 @@ fn test_sandbox_array_index_checked() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    println!("Testing sandbox_array_index_checked function:");
     symex_func_with_loop_bound("sandbox_array_index_checked", &project, loop_bound);
 }
