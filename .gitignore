@@ -3,3 +3,5 @@
 *.bc
 *.ll
 *.so
+*.o
+examples/host
