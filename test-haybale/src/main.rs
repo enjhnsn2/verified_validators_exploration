@@ -9,7 +9,7 @@ fn symex_func_with_loop_bound(func_name: &str, project: &Project, loop_bound: us
 
     config.loop_bound = loop_bound;
 
-    let mut em = symex_function(func_name, project, config, None).unwrap();
+    let em = symex_function(func_name, project, config, None).unwrap();
 
     for path in em {
         match path {

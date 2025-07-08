@@ -37,7 +37,7 @@ fn default_uc_hook(
 
         Type::IntegerType { bits } => {
             let sym_name = format!("int_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), { *bits })?;
+            let val = state.new_bv_with_name(sym_name.into(), *bits)?;
             Ok(ReturnValue::Return(val))
         }
 
