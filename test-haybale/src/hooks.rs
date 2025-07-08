@@ -3,24 +3,36 @@ use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::Type;
 
+// Type alias for cleaner function signatures
+type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
+
+/// Get call arguments with exact count validation
+fn get_args_exact(call: &dyn IsCall, expected_count: usize) -> Result<Vec<&llvm_ir::Operand>, Error> {
+    let call_args = call.get_arguments();
+    if call_args.len() != expected_count {
+        return Err(Error::OtherError(format!(
+            "Expected {} arguments, got {}",
+            expected_count,
+            call_args.len()
+        )));
+    }
+    Ok(call_args.iter().map(|(operand, _)| operand).collect())
+}
+
+/// Convert a call argument to a bitvector
+fn get_operand(
+    state: &mut State<DefaultBackend>,
+    arg: &llvm_ir::Operand,
+) -> Result<<DefaultBackend as Backend>::BV, Error> {
+    state.operand_to_bv(arg)
+}
+
 /// EXAMPLE:   auto index = (*sandbox_array)[0].UNSAFE_unverified();
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::UNSAFE_unverified
 // TODO: make generic for any type (currently hardcoded to int)
-fn unsafe_unverified_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let call_args = call.get_arguments();
-
-    if call_args.is_empty() {
-        return Err(Error::OtherError(
-            "UNSAFE_unverified needs at least 1 argument".into(),
-        ));
-    }
-
-    let tainted_operand = &call_args[0].0;
-    let tainted_bv = state.operand_to_bv(tainted_operand)?;
-
+fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_args = get_args_exact(call, 1)?;
+    let tainted_bv = get_operand(state, &call_args[0])?;
     // Read the actual integer value from the tainted_volatile object
     let value_bv = state.read(&tainted_bv, 32)?;
 
@@ -28,10 +40,7 @@ fn unsafe_unverified_hook(
 }
 
 /// default hook for symbolizing return values for functions without explicit hooks
-fn default_uc_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
+fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let func_type = state.type_of(call);
     let pointer_size = state.proj.pointer_size_bits();
     let func_name = &state.cur_loc.func.name;
@@ -47,6 +56,7 @@ fn default_uc_hook(
 
         Type::PointerType { pointee_type, .. } => {
             // For pointers, allocate memory for what they point to
+            // TODO: do we need to special case for null pointers?
             let pointee_bits = get_bits_from_type(pointee_type, pointer_size as u64);
             let ptr = if pointee_bits > 0 {
                 state.allocate(pointee_bits)
@@ -129,47 +139,21 @@ fn default_uc_hook(
 
 // TODO: make generic for any type (currently hardcoded to int)
 /// HOOKED_ON: rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>
-fn rlbox_assign_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let call_args = call.get_arguments();
-
-    if call_args.len() < 2 {
-        return Err(Error::OtherError(
-            "Assignment needs at least 2 arguments".into(),
-        ));
-    }
-
-    let target_operand = &call_args[0].0;
-    let target_bv = state.operand_to_bv(target_operand)?;
-
-    let value_operand = &call_args[1].0;
-    let value_bv = state.operand_to_bv(value_operand)?;
-
+fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_args = get_args_exact(call, 2)?;
+    let target_bv = get_operand(state, &call_args[0])?;
+    let value_bv = get_operand(state, &call_args[1])?;
     let actual_value = state.read(&value_bv, 32)?;
-
     state.write(&target_bv, actual_value)?;
-
     Ok(ReturnValue::Return(target_bv))
 }
 
 // TODO: make generic for any array size, any array type (currently hardcoded to int[4])
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>
-fn sandboxed_index_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let call_args = call.get_arguments();
+fn sandboxed_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_args = get_args_exact(call, 2)?;
 
-    if call_args.len() < 2 {
-        return Err(Error::OtherError(
-            "Insufficient arguments for array access".into(),
-        ));
-    }
-
-    let index_operand = &call_args[1].0;
-    let index_bv = state.operand_to_bv(index_operand)?;
+    let index_bv = get_operand(state, &call_args[1])?;
 
     // Read the integer value from the pointer (32 bits for i32)
     let index_value_bv = state.read(&index_bv, 32)?;
@@ -186,8 +170,7 @@ fn sandboxed_index_hook(
     }
 
     // If bounds check passes, perform the array access manually
-    let array_operand = &call_args[0].0;
-    let array_base_bv = state.operand_to_bv(array_operand)?;
+    let array_base_bv = get_operand(state, &call_args[0])?;
 
     const ELEMENT_SIZE: u32 = 4;
     let offset = index_value * ELEMENT_SIZE as i64;
@@ -199,21 +182,11 @@ fn sandboxed_index_hook(
 
 // TODO: make generic for any array size, any array type, any index type (currently hardcoded to int, 4, unsigned long)
 /// HOOKED_ON: std::__1::array<int, (unsigned long)4>::operator[][abi:un170006]
-fn std_array_index_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let call_args = call.get_arguments();
-
-    if call_args.len() < 2 {
-        return Err(Error::OtherError(
-            "Insufficient arguments for std::array access".into(),
-        ));
-    }
+fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_args = get_args_exact(call, 2)?;
 
     // Get the index value from the second argument
-    let index_operand = &call_args[1].0;
-    let index_bv = state.operand_to_bv(index_operand)?;
+    let index_bv = get_operand(state, &call_args[1])?;
     println!("INDEX_VALUE_BV: {index_bv:?}");
     let index_value = index_bv.as_u64().expect("OOPPPSSSS") as i64;
 
@@ -232,8 +205,7 @@ fn std_array_index_hook(
     // );
 
     // Get the array base address (first argument)
-    let array_operand = &call_args[0].0;
-    let array_base_bv = state.operand_to_bv(array_operand)?;
+    let array_base_bv = get_operand(state, &call_args[0])?;
 
     // Calculate the address of the indexed element
     const ELEMENT_SIZE: u32 = 4; // bytes per int
@@ -247,22 +219,10 @@ fn std_array_index_hook(
 
 // TODO: make generic for any pointer type (currently hardcoded to int (*) [4])
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted, int (*) [4], rlbox::rlbox_test_sandbox>::operator*
-fn rlbox_deref_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let call_args = call.get_arguments();
-
-    if call_args.is_empty() {
-        return Err(Error::OtherError(
-            "operator* needs at least 1 argument".into(),
-        ));
-    }
-
+fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_args = get_args_exact(call, 1)?;
     // Get the tainted pointer object (this)
-    let tainted_ptr_operand = &call_args[0].0;
-    let tainted_ptr_bv = state.operand_to_bv(tainted_ptr_operand)?;
-
+    let tainted_ptr_bv = get_operand(state, &call_args[0])?;
     // Read the actual array pointer from the tainted pointer object
     let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits())?;
 
@@ -272,10 +232,7 @@ fn rlbox_deref_hook(
 
 // TODO: make generic for any array size, any return type (currently hardcoded to int[4])
 /// HOOKED_ON: rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>
-fn malloc_in_sandbox_hook(
-    state: &mut State<DefaultBackend>,
-    _call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
+fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, _call: &dyn IsCall) -> HookResult {
     // Allocate concrete memory for a 4-element int array
     let array_size_bits = 4 * 32_u64; // 4 integers * 32 bits each
     let concrete_array_ptr = state.allocate(array_size_bits);
@@ -286,15 +243,9 @@ fn malloc_in_sandbox_hook(
 // TODO: make generic for any return type (currently hardcoded to int)
 // TODO: figure out how to process the lambda?
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>
-fn copy_and_verify_hook(
-    state: &mut State<DefaultBackend>,
-    call: &dyn IsCall,
-) -> Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error> {
-    let args = call.get_arguments();
-
-    let tainted_operand = &args[0].0;
-    let tainted_bv = state.operand_to_bv(tainted_operand)?;
-
+fn copy_and_verify_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let args = get_args_exact(call, 1)?;
+    let tainted_bv = get_operand(state, &args[0])?;
     let value_bv = state.read(&tainted_bv, 32)?;
 
     // TODO: WHERE TF IS THE LAMBDA????
