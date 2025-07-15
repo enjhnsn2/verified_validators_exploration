@@ -7,7 +7,10 @@ use llvm_ir::Type;
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
 
 /// Get call arguments with exact count validation
-fn get_args_exact(call: &dyn IsCall, expected_count: usize) -> Result<Vec<&llvm_ir::Operand>, Error> {
+fn get_args_exact(
+    call: &dyn IsCall,
+    expected_count: usize,
+) -> Result<Vec<&llvm_ir::Operand>, Error> {
     let call_args = call.get_arguments();
     if call_args.len() != expected_count {
         return Err(Error::OtherError(format!(
