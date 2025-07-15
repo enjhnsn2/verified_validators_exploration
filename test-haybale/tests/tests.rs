@@ -45,3 +45,43 @@ fn test_sandbox_array_index_checked() {
 
     symex_func_with_loop_bound("sandbox_array_index_checked", &project, loop_bound);
 }
+
+#[test]
+fn test_basic_oob_read() {
+    setup_logger();
+    let binary_path = Path::new("../examples/host.bc");
+    let project = Project::from_bc_path(binary_path).unwrap();
+    let loop_bound = 1000;
+
+    symex_func_with_loop_bound("basic_oob_read", &project, loop_bound);
+}
+
+#[test]
+fn test_basic_oob_write() {
+    setup_logger();
+    let binary_path = Path::new("../examples/host.bc");
+    let project = Project::from_bc_path(binary_path).unwrap();
+    let loop_bound = 1000;
+
+    symex_func_with_loop_bound("basic_oob_write", &project, loop_bound);
+}
+
+#[test]
+fn test_basic_null_read() {
+    setup_logger();
+    let binary_path = Path::new("../examples/host.bc");
+    let project = Project::from_bc_path(binary_path).unwrap();
+    let loop_bound = 1000;
+
+    symex_func_with_loop_bound("basic_null_read", &project, loop_bound);
+}
+
+#[test]
+fn test_basic_null_write() {
+    setup_logger();
+    let binary_path = Path::new("../examples/host.bc");
+    let project = Project::from_bc_path(binary_path).unwrap();
+    let loop_bound = 1000;
+
+    symex_func_with_loop_bound("basic_null_write", &project, loop_bound);
+}

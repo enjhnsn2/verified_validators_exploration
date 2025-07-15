@@ -72,6 +72,30 @@ int main() {
 
 
 
+int basic_oob_read() {
+  int32_t host_array[4] = { 100, 200, 300, 400 };
+  host_array[5];
+  return 0;
+}
+
+int basic_oob_write() {
+  int32_t host_array[4] = { 100, 200, 300, 400 };
+  host_array[5] = 1337;
+  return 0;
+}
+
+int basic_null_read() {
+  int32_t* host_array = nullptr;
+  *host_array;
+  return 0;
+}
+
+int basic_null_write() {
+  int32_t* host_array = nullptr;
+  *host_array = 1337;
+  return 0;
+}
+
 
 // Data transfer test cases (no sandbox control flow)
 
@@ -94,6 +118,37 @@ int sandbox_array_index_unchecked_unsafe() {
 
   // Create host array (not in sandbox)
   std::array<int32_t, 4> host_array = { 100, 200, 300, 400 };
+
+  // Read the first int from sandbox array 
+  auto index = (*sandbox_array)[0].UNSAFE_unverified();
+
+  // Index into host array (unsafe)
+  host_array[index];
+
+  // Cleanup
+  sandbox.destroy_sandbox();
+  
+  return 0;
+}
+
+// This function should flag unsafety, as we don't check the data from the sandbox
+// and this leads to an OOB memory read, using a primitive C array instead of std::array
+int sandbox_primitive_array_index_unchecked_unsafe() {
+  // Create and initialize the sandbox
+  rlbox_sandbox_guest sandbox;
+  sandbox.create_sandbox();
+
+  // Malloc buffer of length 4 in sandbox
+  auto sandbox_array = sandbox.malloc_in_sandbox<int32_t[4]>();
+
+  // Initialize sandbox array with some values 
+  (*sandbox_array)[0] = 10;  
+  (*sandbox_array)[1] = 20;
+  (*sandbox_array)[2] = 30;
+  (*sandbox_array)[3] = 40;
+
+  // Create host primitive array (not in sandbox)
+  int32_t host_array[4] = { 100, 200, 300, 400 };
 
   // Read the first int from sandbox array 
   auto index = (*sandbox_array)[0].UNSAFE_unverified();
