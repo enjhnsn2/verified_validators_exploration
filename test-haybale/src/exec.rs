@@ -1,7 +1,11 @@
 use crate::hooks::add_hooks;
-use haybale::{Config, Project, backend::DefaultBackend, symex_function};
+use haybale::{Config, Error, Project, ReturnValue, backend::DefaultBackend, symex_function};
 
-pub fn symex_func_with_loop_bound(func_name: &str, project: &Project, loop_bound: usize) {
+pub fn symex_func_with_loop_bound(
+    func_name: &str,
+    project: &Project,
+    loop_bound: usize,
+) -> Vec<Result<ReturnValue<<DefaultBackend as haybale::backend::Backend>::BV>, Error>> {
     let mut config: Config<DefaultBackend> = Config::default();
     add_hooks(&mut config);
 
@@ -9,18 +13,9 @@ pub fn symex_func_with_loop_bound(func_name: &str, project: &Project, loop_bound
 
     let em = symex_function(func_name, project, config, None).unwrap();
 
+    let mut results = Vec::new();
     for path in em {
-        match path {
-            Ok(p) => match p {
-                haybale::ReturnValue::Return(r) => println!("Function returns {r:?}"),
-                haybale::ReturnValue::ReturnVoid => println!("Returns void"),
-                haybale::ReturnValue::Throw(e) => println!("Throws error {e:?}"),
-                haybale::ReturnValue::Abort => println!("Aborts"),
-            },
-            Err(e) => {
-                println!("{}", e);
-                break;
-            }
-        }
+        results.push(path);
     }
+    results
 }

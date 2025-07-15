@@ -23,7 +23,14 @@ fn test_sandbox_array_index_unchecked_unsafe() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("sandbox_array_index_unchecked_unsafe", &project, loop_bound);
+    let results =
+        symex_func_with_loop_bound("sandbox_array_index_unchecked_unsafe", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_err(),
+        "Expected the result to be Err, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -33,7 +40,14 @@ fn test_sandbox_array_index_unchecked_safe() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("sandbox_array_index_unchecked_safe", &project, loop_bound);
+    let results =
+        symex_func_with_loop_bound("sandbox_array_index_unchecked_safe", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_ok(),
+        "Expected the result to be Ok, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -43,7 +57,13 @@ fn test_sandbox_array_index_checked() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("sandbox_array_index_checked", &project, loop_bound);
+    let results = symex_func_with_loop_bound("sandbox_array_index_checked", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_ok(),
+        "Expected the result to be Ok, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -53,7 +73,13 @@ fn test_basic_oob_read() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("basic_oob_read", &project, loop_bound);
+    let results = symex_func_with_loop_bound("basic_oob_read", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_err(),
+        "Expected the result to be Err, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -63,7 +89,13 @@ fn test_basic_oob_write() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("basic_oob_write", &project, loop_bound);
+    let results = symex_func_with_loop_bound("basic_oob_write", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_err(),
+        "Expected the result to be Err, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -73,7 +105,13 @@ fn test_basic_null_read() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("basic_null_read", &project, loop_bound);
+    let results = symex_func_with_loop_bound("basic_null_read", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_err(),
+        "Expected the result to be Err, got: {:?}",
+        results[0]
+    );
 }
 
 #[test]
@@ -83,5 +121,11 @@ fn test_basic_null_write() {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
 
-    symex_func_with_loop_bound("basic_null_write", &project, loop_bound);
+    let results = symex_func_with_loop_bound("basic_null_write", &project, loop_bound);
+    assert_eq!(results.len(), 1, "Expected exactly one result");
+    assert!(
+        results[0].is_err(),
+        "Expected the result to be Err, got: {:?}",
+        results[0]
+    );
 }
