@@ -35,7 +35,7 @@ fn get_operand(
 // TODO: make generic for any type (currently hardcoded to int)
 fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 1)?;
-    let tainted_bv = get_operand(state, &call_args[0])?;
+    let tainted_bv = get_operand(state, call_args[0])?;
     // Read the actual integer value from the tainted_volatile object
     let value_bv = state.read(&tainted_bv, 32)?;
 
@@ -144,8 +144,8 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
 /// HOOKED_ON: rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>
 fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
-    let target_bv = get_operand(state, &call_args[0])?;
-    let value_bv = get_operand(state, &call_args[1])?;
+    let target_bv = get_operand(state, call_args[0])?;
+    let value_bv = get_operand(state, call_args[1])?;
     let actual_value = state.read(&value_bv, 32)?;
     state.write(&target_bv, actual_value)?;
     Ok(ReturnValue::Return(target_bv))
@@ -156,7 +156,7 @@ fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Ho
 fn sandboxed_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
 
-    let index_bv = get_operand(state, &call_args[1])?;
+    let index_bv = get_operand(state, call_args[1])?;
 
     // Read the integer value from the pointer (32 bits for i32)
     let index_value_bv = state.read(&index_bv, 32)?;
@@ -173,7 +173,7 @@ fn sandboxed_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
     }
 
     // If bounds check passes, perform the array access manually
-    let array_base_bv = get_operand(state, &call_args[0])?;
+    let array_base_bv = get_operand(state, call_args[0])?;
 
     const ELEMENT_SIZE: u32 = 4;
     let offset = index_value * ELEMENT_SIZE as i64;
@@ -189,7 +189,7 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
     let call_args = get_args_exact(call, 2)?;
 
     // Get the index value from the second argument
-    let index_bv = get_operand(state, &call_args[1])?;
+    let index_bv = get_operand(state, call_args[1])?;
     println!("INDEX_VALUE_BV: {index_bv:?}");
     let index_value = index_bv.as_u64().expect("OOPPPSSSS") as i64;
 
@@ -208,7 +208,7 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
     // );
 
     // Get the array base address (first argument)
-    let array_base_bv = get_operand(state, &call_args[0])?;
+    let array_base_bv = get_operand(state, call_args[0])?;
 
     // Calculate the address of the indexed element
     const ELEMENT_SIZE: u32 = 4; // bytes per int
@@ -225,7 +225,7 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
 fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 1)?;
     // Get the tainted pointer object (this)
-    let tainted_ptr_bv = get_operand(state, &call_args[0])?;
+    let tainted_ptr_bv = get_operand(state, call_args[0])?;
     // Read the actual array pointer from the tainted pointer object
     let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits())?;
 
@@ -248,7 +248,7 @@ fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, _call: &dyn IsCall)
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>
 fn copy_and_verify_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let args = get_args_exact(call, 1)?;
-    let tainted_bv = get_operand(state, &args[0])?;
+    let tainted_bv = get_operand(state, args[0])?;
     let value_bv = state.read(&tainted_bv, 32)?;
 
     // TODO: WHERE TF IS THE LAMBDA????
