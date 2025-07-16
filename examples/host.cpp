@@ -86,8 +86,7 @@ int basic_oob_write() {
 
 int basic_null_read() {
   int32_t* host_array = nullptr;
-  *host_array;
-  return 0;
+  return *host_array; // return value so that the compiler doesn't optimize the read away
 }
 
 int basic_null_write() {
