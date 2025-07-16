@@ -21,6 +21,23 @@ fn main() {
     let loop_bound = 1000;
 
     let project = Project::from_bc_path(&args.binary).unwrap();
+    let (func, module) = project.get_func_by_name(&args.function).unwrap();
+    println!(
+        "Analyzing function {:?} from module {:?}",
+        func.name, module.name
+    );
+    println!(
+        "Function signature: {:?} -> {:?}",
+        func.parameters, func.return_type
+    );
+    for block in &func.basic_blocks {
+        println!("Basic block {}", block.name);
+        for instr in &block.instrs {
+            println!("--- Instruction: {}", instr);
+        }
+        println!("\n");
+    }
+
     let results = symex_func_with_loop_bound(&args.function, &project, loop_bound);
     if results.len() == 1 {
         println!("We found 1 possible path");
