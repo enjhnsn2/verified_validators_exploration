@@ -82,6 +82,9 @@ pub fn check_div_by_zero_instr(
         Instruction::URem(i) => {
             can_be_zero(state, i.get_operand1())?;
         }
+        Instruction::SRem(i) => {
+            can_be_zero(state, i.get_operand1())?;
+        }
 
         _ => {}
     }
