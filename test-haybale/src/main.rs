@@ -41,11 +41,11 @@ fn main() {
     let trace = symex_func_with_loop_bound(&args.function, &project, loop_bound);
     if trace.len() == 1 {
         println!("We found 1 possible path");
-        // println!("Path: {:?}", trace[0].1);
+        println!("Path: {:?}", trace[0].0);
     } else {
         println!("We found {} possible paths", trace.len());
-        // for (i, path) in trace.iter().enumerate() {
-        //     println!("Path {}: {:?}", i + 1, path.1);
-        // }
+        for (i, path) in trace.iter().enumerate() {
+            println!("Path {}: {:?}", i + 1, path.0);
+        }
     }
 }
