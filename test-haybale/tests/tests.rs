@@ -1,11 +1,10 @@
 use haybale::Project;
 use std::path::Path;
 use std::sync::Once;
-use test_haybale::exec::symex_func_with_loop_bound;
+use test_haybale::exec::symex_and_check;
 
-// TODO: currently these tests just make sure that the symex doesn't crash
-// We need to improve these tests so that they check that the symex has the correct final state
-// e.g., that we return with the memory safety errors we expect (or if there are none, that the final state is safe)
+// TODO: currently these tests just make sure that negative tests get an error, and positive tests get an ok
+// we should probably check that they're actually getting the right errors
 
 static INIT: Once = Once::new();
 
@@ -16,148 +15,62 @@ fn setup_logger() {
     });
 }
 
-#[test]
-fn test_sandbox_array_index_unchecked_unsafe() {
+/// Helper to run symex_and_check and assert the result is as expected
+fn run_and_assert_err(func_name: &str, expect_err: bool) {
     setup_logger();
     let binary_path = Path::new("../examples/host.bc");
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
-
-    let results =
-        symex_func_with_loop_bound("sandbox_array_index_unchecked_unsafe", &project, loop_bound);
+    let results = symex_and_check(func_name, &project, loop_bound);
     assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    if expect_err {
+        assert!(results[0].is_err(), "Expected Err, got: {:?}", results[0]);
+    } else {
+        assert!(results[0].is_ok(), "Expected Ok, got: {:?}", results[0]);
+    }
+}
+
+#[test]
+fn test_sandbox_array_index_unchecked_unsafe() {
+    run_and_assert_err("sandbox_array_index_unchecked_unsafe", true);
 }
 
 #[test]
 fn test_sandbox_array_index_unchecked_safe() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results =
-        symex_func_with_loop_bound("sandbox_array_index_unchecked_safe", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_ok(),
-        "Expected the result to be Ok, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("sandbox_array_index_unchecked_safe", false);
 }
 
 #[test]
 fn test_sandbox_array_index_checked() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("sandbox_array_index_checked", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_ok(),
-        "Expected the result to be Ok, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("sandbox_array_index_checked", false);
 }
 
 #[test]
 fn test_basic_oob_read() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_oob_read", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_oob_read", true);
 }
 
 #[test]
 fn test_basic_oob_write() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_oob_write", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_oob_write", true);
 }
 
 #[test]
 fn test_basic_null_read() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_null_read", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_null_read", true);
 }
 
 #[test]
 fn test_basic_null_write() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_null_write", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_null_write", true);
 }
 
 #[test]
 fn test_basic_div_by_zero() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_div_by_zero", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_div_by_zero", true);
 }
 
 #[test]
 fn test_basic_div_by_zero2() {
-    setup_logger();
-    let binary_path = Path::new("../examples/host.bc");
-    let project = Project::from_bc_path(binary_path).unwrap();
-    let loop_bound = 1000;
-
-    let results = symex_func_with_loop_bound("basic_div_by_zero2", &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    assert!(
-        results[0].0.is_err(),
-        "Expected the result to be Err, got: {:?}",
-        results[0].0
-    );
+    run_and_assert_err("basic_div_by_zero2", true);
 }

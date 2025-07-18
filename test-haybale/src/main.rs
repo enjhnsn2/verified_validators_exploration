@@ -3,7 +3,7 @@ mod exec;
 mod hooks;
 mod types;
 use clap::Parser;
-use exec::symex_func_with_loop_bound;
+use exec::symex_and_check;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -38,14 +38,15 @@ fn main() {
         println!("\n");
     }
 
-    let trace = symex_func_with_loop_bound(&args.function, &project, loop_bound);
-    if trace.len() == 1 {
-        println!("We found 1 possible path");
-        println!("Path: {:?}", trace[0].0);
-    } else {
-        println!("We found {} possible paths", trace.len());
-        for (i, path) in trace.iter().enumerate() {
-            println!("Path {}: {:?}", i + 1, path.0);
-        }
-    }
+    let trace = symex_and_check(&args.function, &project, loop_bound);
+    println!("trace: {:?}", trace);
+    // if trace.len() == 1 {
+    //     println!("We found 1 possible path");
+    //     println!("Path: {:?}", trace[0].0);
+    // } else {
+    //     println!("We found {} possible paths", trace.len());
+    //     for (i, path) in trace.iter().enumerate() {
+    //         println!("Path {}: {:?}", i + 1, path.0);
+    //     }
+    // }
 }
