@@ -103,6 +103,14 @@ int basic_div_by_zero2(int denominator) {
   return 3 / denominator; // return value so that the compiler doesn't optimize the read away
 }
 
+int basic_div_by_zero_guarded(int denominator) {
+  if (denominator == 0) {
+    return 0;
+  }
+  return 3 / denominator; // return value so that the compiler doesn't optimize the read away
+}
+
+
 // Data transfer test cases (no sandbox control flow)
 
 

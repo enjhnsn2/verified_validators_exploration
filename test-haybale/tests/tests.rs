@@ -22,11 +22,13 @@ fn run_and_assert_err(func_name: &str, expect_err: bool) {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
     let results = symex_and_check(func_name, &project, loop_bound);
-    assert_eq!(results.len(), 1, "Expected exactly one result");
-    if expect_err {
-        assert!(results[0].is_err(), "Expected Err, got: {:?}", results[0]);
-    } else {
-        assert!(results[0].is_ok(), "Expected Ok, got: {:?}", results[0]);
+    //assert_eq!(results.len(), 1, "Expected exactly one result"); // TODO: need to expand to handle any number of paths
+    for result in results {
+        if expect_err {
+            assert!(result.is_err(), "Expected Err, got: {:?}", result);
+        } else {
+            assert!(result.is_ok(), "Expected Ok, got: {:?}", result);
+        }
     }
 }
 
@@ -73,4 +75,9 @@ fn test_basic_div_by_zero() {
 #[test]
 fn test_basic_div_by_zero2() {
     run_and_assert_err("basic_div_by_zero2", true);
+}
+
+#[test]
+fn test_basic_div_by_zero_guarded() {
+    run_and_assert_err("basic_div_by_zero_guarded", false);
 }
