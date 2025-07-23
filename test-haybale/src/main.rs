@@ -1,4 +1,5 @@
 use haybale::Project;
+mod checkers;
 mod exec;
 mod hooks;
 mod types;
@@ -30,13 +31,13 @@ fn main() {
         "Function signature: {:?} -> {:?}",
         func.parameters, func.return_type
     );
-    // for block in &func.basic_blocks {
-    //     println!("Basic block {}", block.name);
-    //     for instr in &block.instrs {
-    //         println!("--- Instruction: {}", instr);
-    //     }
-    //     println!("\n");
-    // }
+    for block in &func.basic_blocks {
+        println!("Basic block {}", block.name);
+        for instr in &block.instrs {
+            println!("--- Instruction: {}", instr);
+        }
+        println!("\n");
+    }
 
     let trace = symex_and_check(&args.function, &project, loop_bound);
     println!("trace: {:?}", trace);

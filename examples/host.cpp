@@ -95,6 +95,13 @@ int basic_null_write() {
   return 0;
 }
 
+int basic_null_write2(int32_t* ptr) {
+  *ptr = 1337;
+  return 0;
+}
+
+
+
 int basic_div_by_zero() {
   return 3 / 0; // return value so that the compiler doesn't optimize the read away
 }

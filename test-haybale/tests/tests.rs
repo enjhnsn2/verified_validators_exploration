@@ -68,6 +68,11 @@ fn test_basic_null_write() {
 }
 
 #[test]
+fn test_basic_null_write2() {
+    run_and_assert_err("basic_null_write2", true);
+}
+
+#[test]
 fn test_basic_div_by_zero() {
     run_and_assert_err("basic_div_by_zero", true);
 }
