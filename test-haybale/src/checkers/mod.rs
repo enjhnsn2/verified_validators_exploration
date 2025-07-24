@@ -18,6 +18,6 @@ pub type CheckResult = Result<(), CheckErr>;
 pub fn check_trace(trace: &ExecutionTrace<'_>) -> CheckResult {
     null_deref::check_null_deref(trace)?;
     div_by_zero::check_div_by_zero(trace)?;
-    // oob::check_array_oob(trace)?; // Uncomment when implemented
+    oob::check_oob(trace)?;
     Ok(())
 }
