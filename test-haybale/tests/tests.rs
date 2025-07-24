@@ -58,6 +58,31 @@ fn test_basic_oob_write() {
 }
 
 #[test]
+fn test_basic_oob_read_from_arg() {
+    run_and_assert_err("basic_oob_read_from_arg", true);
+}
+
+#[test]
+fn test_trivial_array_read() {
+    run_and_assert_err("trivial_array_read", false);
+}
+
+#[test]
+fn test_trivial_array_read_2d() {
+    run_and_assert_err("trivial_array_read_2d", false);
+}
+
+#[test]
+fn test_trivial_struct_read() {
+    run_and_assert_err("trivial_struct_read", false);
+}
+
+#[test]
+fn test_trivial_struct_read_nested() {
+    run_and_assert_err("trivial_struct_read_nested", false);
+}
+
+#[test]
 fn test_basic_null_read() {
     run_and_assert_err("basic_null_read", true);
 }

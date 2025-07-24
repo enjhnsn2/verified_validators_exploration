@@ -70,7 +70,19 @@ int main() {
   return 0;
 }
 
+// should be safe
+int trivial_array_read() {
+  int32_t host_array[4] = { 100, 200, 300, 400 };
+  host_array[1];
+  return 0;
+}
 
+// should be safe
+int trivial_array_read_2d() {
+ int host_array[2][3] = { {1, 4, 2}, {3, 6, 8} };  
+ host_array[1][1];
+ return 0;
+}
 
 int basic_oob_read() {
   int32_t host_array[4] = { 100, 200, 300, 400 };
@@ -82,6 +94,37 @@ int basic_oob_write() {
   int32_t host_array[4] = { 100, 200, 300, 400 };
   host_array[5] = 1337;
   return 0;
+}
+
+// should fail
+int basic_oob_read_from_arg(uint32_t index) {
+  int32_t host_array[4] = { 100, 200, 300, 400 };
+  host_array[index];
+  return 0;
+}
+
+
+// Example struct
+struct SimpleStruct {
+  int32_t a;
+  int32_t b;
+};
+
+struct ComplexStruct {
+  SimpleStruct a;
+  SimpleStruct b;
+};
+
+// should be safe
+int trivial_struct_read() {
+  SimpleStruct host_struct = { 100, 200 };
+  return host_struct.a;
+}
+
+// should be safe
+int trivial_struct_read_nested() {
+  ComplexStruct host_struct = { {100, 200}, {300, 400} };
+  return host_struct.b.a;
 }
 
 int basic_null_read() {
@@ -99,8 +142,6 @@ int basic_null_write2(int32_t* ptr) {
   *ptr = 1337;
   return 0;
 }
-
-
 
 int basic_div_by_zero() {
   return 3 / 0; // return value so that the compiler doesn't optimize the read away

@@ -37,7 +37,7 @@ fn check_oob_instr(state: &State<'_, DefaultBackend>, instr: &llvm_ir::Instructi
                 check_gep_inbounds(state, ty, indices);
             }
         } else {
-            panic!("check_oob_instr: addr is not a local operand: {:?}", addr);
+            panic!("check_oob_instr: addr is not a local operand: {addr}");
         }
     }
     Ok(())
@@ -53,7 +53,7 @@ fn get_pointer_type(ty: &Type) -> TypeRef {
             assert!(*addr_space == 0);
             pointee_type.clone()
         }
-        _ => panic!("get_pointer_type: not a pointer type: {:?}", ty),
+        _ => panic!("get_pointer_type: not a pointer type: {ty}"),
     }
 }
 
@@ -74,10 +74,7 @@ fn check_gep_inbounds(state: &State<'_, DefaultBackend>, ty: &Type, indices: &[O
         Type::NamedStructType { name } => {
             check_gep_inbounds_namedstruct(state, indices, name);
         }
-        _ => panic!(
-            "Trying to calculate address of non-array or struct type: {:?}",
-            ty
-        ),
+        _ => panic!("Trying to calculate address of non-array or struct type: {ty}",),
     }
 }
 
@@ -89,6 +86,18 @@ fn check_gep_inbounds_array(
 ) {
     println!(">>> element_type: {:?}", element_type);
     println!(">>> num_elements: {:?}", num_elements);
+    assert!(num_elements > 0);
+
+    // Only handles indices of the form [0, x] for now
+    // assert!(indices.len() == 2);
+    // let index_0 = &indices[0];
+    // let index_1 = &indices[1];
+    // if let Operand::ConstantOperand { value: Constant::Int(value) } = index_0 {
+    //     assert!(value == 0);
+    // } else {
+    //     panic!("check_gep_inbounds_array: index_0 is not a constant: {index_0}");
+    // }
+
     unimplemented!()
 }
 
@@ -103,7 +112,6 @@ fn check_gep_inbounds_struct(
     unimplemented!()
 }
 
-// TODO: need to handle NamedStructs
 fn check_gep_inbounds_namedstruct(
     _state: &State<'_, DefaultBackend>,
     _indices: &[Operand],
