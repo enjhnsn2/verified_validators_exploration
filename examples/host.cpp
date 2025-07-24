@@ -86,7 +86,7 @@ int trivial_array_read_2d() {
 
 int basic_oob_read() {
   int32_t host_array[4] = { 100, 200, 300, 400 };
-  host_array[5];
+  host_array[4];
   return 0;
 }
 
