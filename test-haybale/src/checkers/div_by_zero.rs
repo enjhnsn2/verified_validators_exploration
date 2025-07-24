@@ -1,5 +1,6 @@
 use super::{CheckErr, CheckResult, ExecutionTrace};
 use haybale::State;
+use haybale::backend::DefaultBackend;
 use llvm_ir::Instruction;
 use llvm_ir::instruction::BinaryOp;
 
@@ -15,7 +16,7 @@ pub fn check_div_by_zero(trace: &ExecutionTrace<'_>) -> CheckResult {
 }
 
 fn check_div_by_zero_instr(
-    state: &State<'_, haybale::backend::DefaultBackend>,
+    state: &State<'_, DefaultBackend>,
     instr: &llvm_ir::Instruction,
 ) -> CheckResult {
     match instr {
@@ -36,10 +37,7 @@ fn check_div_by_zero_instr(
     Ok(())
 }
 
-fn can_be_zero(
-    state: &State<'_, haybale::backend::DefaultBackend>,
-    operand: &llvm_ir::Operand,
-) -> CheckResult {
+fn can_be_zero(state: &State<'_, DefaultBackend>, operand: &llvm_ir::Operand) -> CheckResult {
     let bv = state.operand_to_bv(operand).unwrap();
     let zero = state.zero(bv.get_width());
     // We will assert that value is zero, and check if state is sat
