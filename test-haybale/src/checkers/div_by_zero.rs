@@ -16,7 +16,6 @@ pub fn check_div_by_zero(trace: &ExecutionTrace<'_>) -> CheckResult {
         if error == DIV_BY_ZERO_ERROR {
             return Err(Error::OtherError(DIV_BY_ZERO_ERROR.to_string()));
         }
-        return Err(Error::OtherError(DIV_BY_ZERO_ERROR.to_string()));
     }
     Ok(())
 }

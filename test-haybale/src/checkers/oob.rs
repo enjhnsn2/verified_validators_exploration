@@ -20,7 +20,6 @@ pub fn check_oob(trace: &ExecutionTrace<'_>) -> CheckResult {
         if error == OOB_ERROR {
             return Err(Error::OtherError(OOB_ERROR.to_string()));
         }
-        return Err(Error::OtherError(OOB_ERROR.to_string()));
     }
     Ok(())
 }
@@ -35,14 +34,37 @@ pub fn check_oob(trace: &ExecutionTrace<'_>) -> CheckResult {
 // >>> addr: [4 x i32]* %1 (%1 is the array, 4xi32 is the type used to perform address calculations)
 // >>> indices:  i64 0, i64 5 , first value indexes the pointer, the second the type. First should always be 0?
 // inbounds: true
-pub fn monitor_oob(
-    instr: &llvm_ir::Instruction,
-    em: &ExecutionManager<'_, DefaultBackend>,
+pub fn monitor_oob<'a>(
+    instr: &'a llvm_ir::Instruction,
+    em: &ExecutionManager<'a, DefaultBackend>,
 ) -> CheckResult {
     if let Instruction::GetElementPtr(i) = instr {
-        let addr = &i.address;
-        let indices = &i.indices;
-        let bvbase = em.state().operand_to_bv(addr).unwrap();
+        // let addr = &i.address;
+        // let indices = &i.indices;
+        let bvbase = em.state().operand_to_bv(&i.address).unwrap();
+        let ty = em.state().type_of(&i.address);
+
+        // let bvbase = self.state.operand_to_bv(&gep.address)?;
+        let offset = ExecutionManager::<DefaultBackend>::get_offset_recursive(
+            em.state(),
+            i.indices.iter(),
+            &ty,
+            bvbase.get_width(),
+        )
+        .unwrap();
+
+        let size_in_bits = em.state().size_in_bits(&*get_pointer_type(&*ty)).unwrap();
+        assert!(size_in_bits % 8 == 0);
+        let size_in_bytes = size_in_bits / 8;
+
+        let sz_bv = em.state().bv_from_u32(size_in_bytes, offset.get_width());
+
+        println!("|||||| {:?} {:?}", sz_bv, offset);
+
+        offset.ugte(&sz_bv).assert();
+        if em.state().sat().unwrap() {
+            return Err(Error::OtherError(OOB_ERROR.to_string()));
+        }
         // let offset = state.get_offset_recursive(indices.iter(), state.type_of(addr), bvbase.get_width()).unwrap();
         // println!("|||||| {:?} {:?}", bvbase, offset);
         // if let Operand::LocalOperand { name: _, ty } = addr {
