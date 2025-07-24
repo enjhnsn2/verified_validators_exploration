@@ -1,18 +1,26 @@
-use super::{CheckResult, ExecutionTrace};
+use super::CheckResult;
+use crate::checkers::CheckErr;
+use crate::checkers::ExecutionTrace;
+use haybale::Error;
+use haybale::ExecutionManager;
 use haybale::State;
 use haybale::backend::DefaultBackend;
 use llvm_ir::Instruction;
 use llvm_ir::Type;
 use llvm_ir::TypeRef;
+use llvm_ir::constant::Constant;
 use llvm_ir::operand::Operand;
 
+const OOB_ERROR: &str = "CheckErr::Oob";
+
+// Currently just checks whether the monitor reported an error
 pub fn check_oob(trace: &ExecutionTrace<'_>) -> CheckResult {
-    let (_result, state) = trace;
-    for path_entry in state.get_path().iter() {
-        let bb = path_entry.0.bb;
-        for instr in &bb.instrs {
-            check_oob_instr(state, instr)?;
+    let (result, _state) = trace;
+    if let Err(Error::OtherError(error)) = result {
+        if error == OOB_ERROR {
+            return Err(Error::OtherError(OOB_ERROR.to_string()));
         }
+        return Err(Error::OtherError(OOB_ERROR.to_string()));
     }
     Ok(())
 }
@@ -27,18 +35,24 @@ pub fn check_oob(trace: &ExecutionTrace<'_>) -> CheckResult {
 // >>> addr: [4 x i32]* %1 (%1 is the array, 4xi32 is the type used to perform address calculations)
 // >>> indices:  i64 0, i64 5 , first value indexes the pointer, the second the type. First should always be 0?
 // inbounds: true
-fn check_oob_instr(state: &State<'_, DefaultBackend>, instr: &llvm_ir::Instruction) -> CheckResult {
+pub fn monitor_oob(
+    instr: &llvm_ir::Instruction,
+    em: &ExecutionManager<'_, DefaultBackend>,
+) -> CheckResult {
     if let Instruction::GetElementPtr(i) = instr {
         let addr = &i.address;
         let indices = &i.indices;
-        if let Operand::LocalOperand { name: _, ty } = addr {
-            // we only enforce if in_bounds is true, because if its not present, than anything goes
-            if i.in_bounds {
-                check_gep_inbounds(state, ty, indices);
-            }
-        } else {
-            panic!("check_oob_instr: addr is not a local operand: {addr}");
-        }
+        let bvbase = em.state().operand_to_bv(addr).unwrap();
+        // let offset = state.get_offset_recursive(indices.iter(), state.type_of(addr), bvbase.get_width()).unwrap();
+        // println!("|||||| {:?} {:?}", bvbase, offset);
+        // if let Operand::LocalOperand { name: _, ty } = addr {
+        //     // we only enforce if in_bounds is true, because if its not present, than anything goes
+        //     if i.in_bounds {
+        //         check_gep_inbounds(state, ty, indices);
+        //     }
+        // } else {
+        //     panic!("check_oob_instr: addr is not a local operand: {addr}");
+        // }
     }
     Ok(())
 }
@@ -78,28 +92,29 @@ fn check_gep_inbounds(state: &State<'_, DefaultBackend>, ty: &Type, indices: &[O
     }
 }
 
+// fn calculate_array_offset(indices: &[Operand], element_type: &Type) -> usize {
+
+// }
+
 fn check_gep_inbounds_array(
-    _state: &State<'_, DefaultBackend>,
-    _indices: &[Operand],
+    state: &State<'_, DefaultBackend>,
+    indices: &[Operand],
     element_type: &Type,
     num_elements: usize,
-) {
+) -> CheckResult {
     println!(">>> element_type: {:?}", element_type);
     println!(">>> num_elements: {:?}", num_elements);
+    println!(">>> indices: {:?}", indices);
     assert!(num_elements > 0);
 
-    // Only handles indices of the form [0, x] for now
-    // assert!(indices.len() == 2);
-    // let index_0 = &indices[0];
-    // let index_1 = &indices[1];
-    // if let Operand::ConstantOperand { value: Constant::Int(value) } = index_0 {
-    //     assert!(value == 0);
-    // } else {
-    //     panic!("check_gep_inbounds_array: index_0 is not a constant: {index_0}");
-    // }
-
-    unimplemented!()
+    // Only handles indices of the form [0, constant] for now
+    // let bvbase = state.const_to_bv(&gep.address)?;
+    // let offset = state.get_offset_recursive(indices, element_type);
+    // println!(">>> offset: {:?}", offset);
+    Ok(())
 }
+
+// TODO: use state::get_offset_recursive in haybale
 
 fn check_gep_inbounds_struct(
     _state: &State<'_, DefaultBackend>,

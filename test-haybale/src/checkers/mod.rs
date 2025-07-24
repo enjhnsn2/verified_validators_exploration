@@ -11,9 +11,11 @@ pub type ExecutionTrace<'a> = (PathResult, State<'a, DefaultBackend>);
 pub enum CheckErr {
     DereferencedNull,
     DividedByZero,
+    Oob,
 }
 
-pub type CheckResult = Result<(), CheckErr>;
+//pub type CheckResult = Result<(), CheckErr>;
+pub type CheckResult = Result<(), Error>; // TODO: change to CheckErr
 
 pub fn check_trace(trace: &ExecutionTrace<'_>) -> CheckResult {
     null_deref::check_null_deref(trace)?;
