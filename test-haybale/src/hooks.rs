@@ -47,6 +47,7 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
     let pointer_size = state.proj.pointer_size_bits();
     let func_name = &state.cur_loc.func.name;
 
+    // TODO: I suspect that much of this functionally is redundant with functionality already in Haybale
     let ret = match &*func_type {
         Type::VoidType => Ok(ReturnValue::ReturnVoid),
 
@@ -201,11 +202,6 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
             index_value, ARRAY_SIZE
         )));
     }
-
-    // println!(
-    //     "std::array bounds check passed: index {} is within bounds [0, {})",
-    //     index_value, ARRAY_SIZE
-    // );
 
     // Get the array base address (first argument)
     let array_base_bv = get_operand(state, call_args[0])?;
