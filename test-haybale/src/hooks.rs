@@ -1,4 +1,3 @@
-use crate::types::get_bits_from_type;
 use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::Type;
@@ -60,7 +59,8 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
         Type::PointerType { pointee_type, .. } => {
             // For pointers, allocate memory for what they point to
             // TODO: do we need to special case for null pointers?
-            let pointee_bits = get_bits_from_type(pointee_type, pointer_size as u64);
+            // let pointee_bits = get_bits_from_type(pointee_type, pointer_size as u64);
+            let pointee_bits = state.size_in_bits(pointee_type).unwrap();
             let ptr = if pointee_bits > 0 {
                 state.allocate(pointee_bits)
             } else {
@@ -84,10 +84,10 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
             num_elements,
             ..
         } => {
-            let element_bits = get_bits_from_type(element_type, pointer_size as u64);
-            let total_bits = element_bits * (*num_elements as u64);
+            let element_bits = state.size_in_bits(element_type).unwrap();
+            let total_bits = element_bits * (*num_elements as u32);
             let sym_name = format!("vec_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), total_bits as u32)?;
+            let val = state.new_bv_with_name(sym_name.into(), total_bits)?;
             Ok(ReturnValue::Return(val))
         }
 
@@ -95,27 +95,27 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
             element_type,
             num_elements,
         } => {
-            let element_bits = get_bits_from_type(element_type, pointer_size as u64);
-            let total_bits = element_bits * (*num_elements as u64);
+            let element_bits = state.size_in_bits(element_type).unwrap();
+            let total_bits = element_bits * (*num_elements as u32);
             let sym_name = format!("arr_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), total_bits as u32)?;
+            let val = state.new_bv_with_name(sym_name.into(), total_bits)?;
             Ok(ReturnValue::Return(val))
         }
 
         Type::StructType { element_types, .. } => {
-            let total_bits: u64 = element_types
+            let total_bits: u32 = element_types
                 .iter()
-                .map(|e| get_bits_from_type(e, pointer_size as u64))
+                .map(|e| state.size_in_bits(e).unwrap())
                 .sum();
             let sym_name = format!("struct_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), total_bits as u32)?;
+            let val = state.new_bv_with_name(sym_name.into(), total_bits)?;
             Ok(ReturnValue::Return(val))
         }
 
         Type::FPType(fptype) => {
-            let bits = get_bits_from_type(&Type::FPType(*fptype), pointer_size as u64);
+            let bits = State::<DefaultBackend>::fp_size_in_bits(*fptype);
             let sym_name = format!("fp_{}", func_name);
-            let val = state.new_bv_with_name(sym_name.into(), bits as u32)?;
+            let val = state.new_bv_with_name(sym_name.into(), bits)?;
             Ok(ReturnValue::Return(val))
         }
 

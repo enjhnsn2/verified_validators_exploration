@@ -2,7 +2,6 @@ use haybale::Project;
 mod checkers;
 mod exec;
 mod hooks;
-mod types;
 use clap::Parser;
 use exec::symex_and_check;
 
