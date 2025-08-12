@@ -1,11 +1,10 @@
 use haybale::Project;
 mod checkers;
+mod demangle;
 mod exec;
 mod hooks;
-mod demangle;
 use clap::Parser;
 use exec::symex_and_check;
-use log;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -30,7 +29,8 @@ fn main() {
     );
     log::info!(
         "Function signature: {:?} -> {:?}",
-        func.parameters, func.return_type
+        func.parameters,
+        func.return_type
     );
     for block in &func.basic_blocks {
         log::info!("Basic block {}", block.name);

@@ -4,6 +4,3 @@
 [submodule "haybale"]
 	path = haybale
 	url = git@github.com:enjhnsn2/haybale.git
-[submodule "cpp_demangle"]
-	path = cpp_demangle
-	url = git@github.com:enjhnsn2/cpp_demangle.git

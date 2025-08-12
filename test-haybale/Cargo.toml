@@ -10,4 +10,3 @@ haybale = { path = "../haybale", features = ["llvm-14", "vendor-boolector"] }
 clap = { version = "4.0", features = ["derive"] }
 llvm-ir = "0.8.2"
 either = "1.8"
-cpp_demangle = { version = "0.4.4", path = "../cpp_demangle" }

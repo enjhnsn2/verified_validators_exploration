@@ -1,12 +1,9 @@
+use crate::demangle::erase_templates;
+use either::Either;
 use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::Type;
-use log;
 use llvm_ir::{Constant, Name, Operand};
-use either::Either;
-use crate::demangle::demangle_and_parse_cpp_function;
-use crate::demangle::extract_function_name_from_complex;
-
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
@@ -35,16 +32,16 @@ fn get_operand(
     state.operand_to_bv(arg)
 }
 
-
 /// Extract the function name from a dyn IsCall
 fn get_function_name(call: &dyn IsCall) -> Option<&str> {
     match call.get_called_func() {
-        Either::Right(Operand::ConstantOperand(cref)) => {
-            match cref.as_ref() {
-                Constant::GlobalReference { name: Name::Name(name), .. } => Some(name),
-                _ => None,
-            }
-        }
+        Either::Right(Operand::ConstantOperand(cref)) => match cref.as_ref() {
+            Constant::GlobalReference {
+                name: Name::Name(name),
+                ..
+            } => Some(name),
+            _ => None,
+        },
         _ => None, // inline assembly
     }
 }
@@ -61,34 +58,27 @@ fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) 
     Ok(ReturnValue::Return(value_bv))
 }
 
+fn hook_dispatch(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let call_target_name = get_function_name(call).unwrap();
+    let demangled_call_target_name = state.demangle(call_target_name);
+    let true_func_name = erase_templates(&demangled_call_target_name);
+    match true_func_name.as_str() {
+        "rlbox::tainted_base_impl::UNSAFE_unverified" => unsafe_unverified_hook(state, call),
+        "rlbox::tainted_volatile::operator=" => rlbox_assign_hook(state, call),
+        "rlbox::tainted_base_impl::operator[]" => sandboxed_index_hook(state, call),
+        "std::array::operator[]" => std_array_index_hook(state, call),
+        "rlbox::tainted_base_impl::operator*" => rlbox_deref_hook(state, call),
+        "rlbox::rlbox_sandbox::malloc_in_sandbox" => malloc_in_sandbox_hook(state, call),
+        "rlbox::tainted_base_impl::copy_and_verify" => copy_and_verify_hook(state, call),
+        _ => default_uc_hook(state, call),
+    }
+}
+
 /// default hook for symbolizing return values for functions without explicit hooks
 fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let func_type = state.type_of(call);
     let pointer_size = state.proj.pointer_size_bits();
     let func_name = &state.cur_loc.func.name;
-
-    let call_target_name = get_function_name(call).unwrap();
-    println!("DEFAULT_UC_HOOK: demangled name: {}", state.demangle(call_target_name));
-    let true_func_name = extract_function_name_from_complex(&state.demangle(call_target_name)).unwrap();
-    println!("DEFAULT_UC_HOOK: true function name: {:?}", true_func_name);
-    // Try to parse the demangled function name
-    match demangle_and_parse_cpp_function(call_target_name) {
-        Ok(parsed_func) => {
-            // println!("DEFAULT_UC_HOOK: Parsed function: {}", parsed_func.signature());
-            // println!("  Namespace: {:?}", parsed_func.namespace);
-            // println!("  Function name: {}", parsed_func.function_name);
-            // println!("  Template args: {:?}", parsed_func.template_args);
-            // println!("  Parameters: {:?}", parsed_func.parameters);
-            // println!("  Return type: {:?}", parsed_func.return_type);
-            // println!("  Is operator: {}", parsed_func.is_operator);
-            // println!("  Is constructor: {}", parsed_func.is_constructor);
-            // println!("  Is destructor: {}", parsed_func.is_destructor);
-        }
-        Err(e) => {
-            println!("DEFAULT_UC_HOOK: Failed to parse function name: {}", e);
-            println!("DEFAULT_UC_HOOK: Raw name: {}", state.demangle(call_target_name));
-        }
-    }
 
     // TODO: I suspect that much of this functionally is redundant with functionality already in Haybale
     let ret = match &*func_type {
@@ -296,42 +286,5 @@ fn copy_and_verify_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
 }
 
 pub fn add_hooks(config: &mut Config<DefaultBackend>) {
-    config.function_hooks.add_uc_hook(&default_uc_hook);
-
-    // indexing into sandboxed array
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>",
-        &sandboxed_index_hook
-    );
-    // indexing into std lib array
-    config.function_hooks.add_cpp_demangled(
-        "std::__1::array<int, (unsigned long)4>::operator[][abi:un170006]",
-        &std_array_index_hook,
-    );
-    // hook for unsafe verified
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::UNSAFE_unverified",
-        &unsafe_unverified_hook,
-    );
-    // hook for assignment of rlbox vals
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>",
-        &rlbox_assign_hook,
-    );
-    // hook for deref of rlbox vals
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::tainted_base_impl<rlbox::tainted, int (*) [4], rlbox::rlbox_test_sandbox>::operator*",
-        &rlbox_deref_hook
-    );
-    // malloc array in sandbox hook
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>",
-        &malloc_in_sandbox_hook,
-    );
-    // hook for copy and verify
-    config.function_hooks.add_cpp_demangled(
-        "rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>",
-        &copy_and_verify_hook
-    );
+    config.function_hooks.add_uc_hook(&hook_dispatch);
 }
-
