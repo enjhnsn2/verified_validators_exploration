@@ -2,6 +2,7 @@ use haybale::Project;
 mod checkers;
 mod exec;
 mod hooks;
+mod demangle;
 use clap::Parser;
 use exec::symex_and_check;
 use log;

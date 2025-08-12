@@ -4,6 +4,9 @@ use llvm_ir::Type;
 use log;
 use llvm_ir::{Constant, Name, Operand};
 use either::Either;
+use crate::demangle::demangle_and_parse_cpp_function;
+use crate::demangle::extract_function_name_from_complex;
+
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
@@ -65,15 +68,27 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
     let func_name = &state.cur_loc.func.name;
 
     let call_target_name = get_function_name(call).unwrap();
-    let sym = cpp_demangle::Symbol::new(call_target_name);
-
-    println!("DEFAULT_UC_HOOK: {} ", state.demangle(call_target_name));
-    println!("{:?}", sym.unwrap().parsed);
-   
-   
-    ///     .expect("Could not parse mangled symbol!");
-    // println!("DEFAULT_UC_HOOK: {func_name} {}", state.demangle(name));
-
+    println!("DEFAULT_UC_HOOK: demangled name: {}", state.demangle(call_target_name));
+    let true_func_name = extract_function_name_from_complex(&state.demangle(call_target_name)).unwrap();
+    println!("DEFAULT_UC_HOOK: true function name: {:?}", true_func_name);
+    // Try to parse the demangled function name
+    match demangle_and_parse_cpp_function(call_target_name) {
+        Ok(parsed_func) => {
+            // println!("DEFAULT_UC_HOOK: Parsed function: {}", parsed_func.signature());
+            // println!("  Namespace: {:?}", parsed_func.namespace);
+            // println!("  Function name: {}", parsed_func.function_name);
+            // println!("  Template args: {:?}", parsed_func.template_args);
+            // println!("  Parameters: {:?}", parsed_func.parameters);
+            // println!("  Return type: {:?}", parsed_func.return_type);
+            // println!("  Is operator: {}", parsed_func.is_operator);
+            // println!("  Is constructor: {}", parsed_func.is_constructor);
+            // println!("  Is destructor: {}", parsed_func.is_destructor);
+        }
+        Err(e) => {
+            println!("DEFAULT_UC_HOOK: Failed to parse function name: {}", e);
+            println!("DEFAULT_UC_HOOK: Raw name: {}", state.demangle(call_target_name));
+        }
+    }
 
     // TODO: I suspect that much of this functionally is redundant with functionality already in Haybale
     let ret = match &*func_type {
