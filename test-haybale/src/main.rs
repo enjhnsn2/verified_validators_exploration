@@ -4,6 +4,7 @@ mod exec;
 mod hooks;
 use clap::Parser;
 use exec::symex_and_check;
+use log;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -26,27 +27,27 @@ fn main() {
         "Analyzing function {:?} from module {:?}",
         func.name, module.name
     );
-    println!(
+    log::info!(
         "Function signature: {:?} -> {:?}",
         func.parameters, func.return_type
     );
     for block in &func.basic_blocks {
-        println!("Basic block {}", block.name);
+        log::info!("Basic block {}", block.name);
         for instr in &block.instrs {
-            println!("--- Instruction: {}", instr);
+            log::info!("--- Instruction: {}", instr);
         }
-        println!("\n");
+        log::info!("\n");
     }
 
     let trace = symex_and_check(&args.function, &project, loop_bound);
     println!("trace: {:?}", trace);
     // if trace.len() == 1 {
-    //     println!("We found 1 possible path");
-    //     println!("Path: {:?}", trace[0].0);
+    //     log::info!("We found 1 possible path");
+    //     log::info!("Path: {:?}", trace[0].0);
     // } else {
-    //     println!("We found {} possible paths", trace.len());
+    //     log::info!("We found {} possible paths", trace.len());
     //     for (i, path) in trace.iter().enumerate() {
-    //         println!("Path {}: {:?}", i + 1, path.0);
+    //         log::info!("Path {}: {:?}", i + 1, path.0);
     //     }
     // }
 }

@@ -1,6 +1,9 @@
 use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::Type;
+use log;
+use llvm_ir::{Constant, Name, Operand};
+use either::Either;
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
@@ -29,6 +32,20 @@ fn get_operand(
     state.operand_to_bv(arg)
 }
 
+
+/// Extract the function name from a dyn IsCall
+fn get_function_name(call: &dyn IsCall) -> Option<&str> {
+    match call.get_called_func() {
+        Either::Right(Operand::ConstantOperand(cref)) => {
+            match cref.as_ref() {
+                Constant::GlobalReference { name: Name::Name(name), .. } => Some(name),
+                _ => None,
+            }
+        }
+        _ => None, // inline assembly
+    }
+}
+
 /// EXAMPLE:   auto index = (*sandbox_array)[0].UNSAFE_unverified();
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::UNSAFE_unverified
 // TODO: make generic for any type (currently hardcoded to int)
@@ -46,6 +63,17 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
     let func_type = state.type_of(call);
     let pointer_size = state.proj.pointer_size_bits();
     let func_name = &state.cur_loc.func.name;
+
+    let call_target_name = get_function_name(call).unwrap();
+    let sym = cpp_demangle::Symbol::new(call_target_name);
+
+    println!("DEFAULT_UC_HOOK: {} ", state.demangle(call_target_name));
+    println!("{:?}", sym.unwrap().parsed);
+   
+   
+    ///     .expect("Could not parse mangled symbol!");
+    // println!("DEFAULT_UC_HOOK: {func_name} {}", state.demangle(name));
+
 
     // TODO: I suspect that much of this functionally is redundant with functionality already in Haybale
     let ret = match &*func_type {
@@ -191,7 +219,7 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
 
     // Get the index value from the second argument
     let index_bv = get_operand(state, call_args[1])?;
-    println!("INDEX_VALUE_BV: {index_bv:?}");
+    log::info!("INDEX_VALUE_BV: {index_bv:?}");
     let index_value = index_bv.as_u64().expect("OOPPPSSSS") as i64;
 
     // Bounds check: array size is 4
@@ -291,3 +319,4 @@ pub fn add_hooks(config: &mut Config<DefaultBackend>) {
         &copy_and_verify_hook
     );
 }
+
