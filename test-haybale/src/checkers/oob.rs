@@ -1,12 +1,12 @@
 use super::CheckResult;
 // use crate::checkers::CheckErr;
 use crate::checkers::ExecutionTrace;
+use crate::utils::get_pointer_type;
 use haybale::Error;
 use haybale::ExecutionManager;
 use haybale::backend::Backend;
 use haybale::backend::DefaultBackend;
 use llvm_ir::Instruction;
-use llvm_ir::Type;
 use llvm_ir::TypeRef;
 use llvm_ir::instruction::GetElementPtr;
 
@@ -78,18 +78,4 @@ pub fn monitor_oob<'a>(
         }
     }
     Ok(())
-}
-
-// TODO: in what scenario is addr_space not 0?
-fn get_pointer_type(ty: &Type) -> TypeRef {
-    match ty {
-        Type::PointerType {
-            pointee_type,
-            addr_space,
-        } => {
-            assert!(*addr_space == 0);
-            pointee_type.clone()
-        }
-        _ => panic!("get_pointer_type: not a pointer type: {ty}"),
-    }
 }

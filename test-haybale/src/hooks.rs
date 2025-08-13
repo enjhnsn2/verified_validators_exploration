@@ -1,36 +1,14 @@
 use crate::demangle::erase_templates;
+use crate::utils::*;
 use either::Either;
 use haybale::backend::Backend;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
-use llvm_ir::Type;
+use llvm_ir::TypeRef;
 use llvm_ir::{Constant, Name, Operand};
+use llvm_ir::{Instruction, Type};
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
-
-/// Get call arguments with exact count validation
-fn get_args_exact(
-    call: &dyn IsCall,
-    expected_count: usize,
-) -> Result<Vec<&llvm_ir::Operand>, Error> {
-    let call_args = call.get_arguments();
-    if call_args.len() != expected_count {
-        return Err(Error::OtherError(format!(
-            "Expected {} arguments, got {}",
-            expected_count,
-            call_args.len()
-        )));
-    }
-    Ok(call_args.iter().map(|(operand, _)| operand).collect())
-}
-
-/// Convert a call argument to a bitvector
-fn get_operand(
-    state: &mut State<DefaultBackend>,
-    arg: &llvm_ir::Operand,
-) -> Result<<DefaultBackend as Backend>::BV, Error> {
-    state.operand_to_bv(arg)
-}
 
 /// Extract the function name from a dyn IsCall
 fn get_function_name(call: &dyn IsCall) -> Option<&str> {
@@ -44,6 +22,12 @@ fn get_function_name(call: &dyn IsCall) -> Option<&str> {
         },
         _ => None, // inline assembly
     }
+}
+
+fn get_function_return_type(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> TypeRef {
+    let func_name = get_function_name(call).unwrap();
+    let (func_def, _) = state.proj.get_func_by_name(func_name).unwrap();
+    func_def.return_type.clone()
 }
 
 /// EXAMPLE:   auto index = (*sandbox_array)[0].UNSAFE_unverified();
@@ -62,10 +46,15 @@ fn hook_dispatch(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookRe
     let call_target_name = get_function_name(call).unwrap();
     let demangled_call_target_name = state.demangle(call_target_name);
     let true_func_name = erase_templates(&demangled_call_target_name);
+    println!(
+        "demangled_call_target_name: {:?}",
+        demangled_call_target_name
+    );
+    println!("==> TRUE_FUNC_NAME: {:?}", true_func_name);
     match true_func_name.as_str() {
         "rlbox::tainted_base_impl::UNSAFE_unverified" => unsafe_unverified_hook(state, call),
         "rlbox::tainted_volatile::operator=" => rlbox_assign_hook(state, call),
-        "rlbox::tainted_base_impl::operator[]" => sandboxed_index_hook(state, call),
+        "rlbox::tainted_base_impl::operator[]" => rlbox_index_hook(state, call),
         "std::array::operator[]" => std_array_index_hook(state, call),
         "rlbox::tainted_base_impl::operator*" => rlbox_deref_hook(state, call),
         "rlbox::rlbox_sandbox::malloc_in_sandbox" => malloc_in_sandbox_hook(state, call),
@@ -174,78 +163,73 @@ fn default_uc_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hook
     ret
 }
 
-// TODO: make generic for any type (currently hardcoded to int)
-/// HOOKED_ON: rlbox::tainted_volatile<int, rlbox::rlbox_test_sandbox>::operator=<int>
+// assignment where lhs is tainted.
+// what are the two arguments here?
+/// HOOKED_ON: rlbox::tainted_volatile::operator=
 fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
-    let target_bv = get_operand(state, call_args[0])?;
     let value_bv = get_operand(state, call_args[1])?;
-    let actual_value = state.read(&value_bv, 32)?;
-    state.write(&target_bv, actual_value)?;
-    Ok(ReturnValue::Return(target_bv))
+
+    Ok(ReturnValue::Return(value_bv)) // I think we just return rhs?
 }
 
-// TODO: make generic for any array size, any array type (currently hardcoded to int[4])
-/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>
-fn sandboxed_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+// returns a reference to the pointed-at element
+// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int [4], rlbox::rlbox_test_sandbox>::operator[]<int>
+fn rlbox_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
 
-    let index_bv = get_operand(state, call_args[1])?;
-
-    // Read the integer value from the pointer (32 bits for i32)
-    let index_value_bv = state.read(&index_bv, 32)?;
-
-    let index_value = index_value_bv.as_u64().expect("OOPPPSSSS") as i64;
-
-    // Bounds check: hardcoding for array size of 4 (int[4])
-    const ARRAY_SIZE: i64 = 4;
-    if !(0..ARRAY_SIZE).contains(&index_value) {
-        return Err(Error::OtherError(format!(
-            "Array index {} out of bounds [0, {})",
-            index_value, ARRAY_SIZE
-        )));
-    }
-
-    // If bounds check passes, perform the array access manually
     let array_base_bv = get_operand(state, call_args[0])?;
+    let index_bv = get_operand(state, call_args[1])?;
+    let index_ty = get_operand_type(state, call_args[1]);
 
-    const ELEMENT_SIZE: u32 = 4;
-    let offset = index_value * ELEMENT_SIZE as i64;
-    let offset_bv = state.bv_from_i64(offset, array_base_bv.get_width());
-    let element_addr_bv = array_base_bv.add(&offset_bv);
+    let element_ty = get_pointer_type(&*index_ty);
+
+    let size_in_bits = state.size_in_bits(&*element_ty).unwrap();
+    assert!(size_in_bits % 8 == 0);
+    let element_width = size_in_bits / 8;
+
+    let width_bv = state.bv_from_u32(element_width, size_in_bits);
+    let index_offset = array_base_bv.sub(&index_bv);
+
+    let loaded_index_bv = state.read(&index_bv, size_in_bits)?;
+
+    // TODO: add a bounds check?
+    // TODO: overflow checks? should assert that offset is positive and less than array size
+
+    let offset = width_bv.mul(&loaded_index_bv);
+    let extended_offset = offset.uext(array_base_bv.get_width() - offset.get_width());
+    let element_addr_bv = array_base_bv.add(&extended_offset);
+
+    log::debug!(
+        "rlbox::operator[]: {:?} + {:?} * {:?}",
+        array_base_bv,
+        width_bv,
+        loaded_index_bv
+    );
 
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
-// TODO: make generic for any array size, any array type, any index type (currently hardcoded to int, 4, unsigned long)
+// TODO: copy more from other index
 /// HOOKED_ON: std::__1::array<int, (unsigned long)4>::operator[][abi:un170006]
 fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
 
-    // Get the index value from the second argument
-    let index_bv = get_operand(state, call_args[1])?;
-    log::info!("INDEX_VALUE_BV: {index_bv:?}");
-    let index_value = index_bv.as_u64().expect("OOPPPSSSS") as i64;
-
-    // Bounds check: array size is 4
-    const ARRAY_SIZE: i64 = 4;
-    if !(0..ARRAY_SIZE).contains(&index_value) {
-        return Err(Error::OtherError(format!(
-            "std::array index {} out of bounds [0, {})",
-            index_value, ARRAY_SIZE
-        )));
-    }
-
-    // Get the array base address (first argument)
     let array_base_bv = get_operand(state, call_args[0])?;
+    let index_bv = get_operand(state, call_args[1])?;
+    let index_ty = get_operand_type(state, call_args[1]);
 
-    // Calculate the address of the indexed element
-    const ELEMENT_SIZE: u32 = 4; // bytes per int
-    let index_as_bv = state.bv_from_u32(index_value as u32, array_base_bv.get_width());
-    let offset_bv = index_as_bv.mul(&state.bv_from_u32(ELEMENT_SIZE, array_base_bv.get_width()));
-    let element_addr_bv = array_base_bv.add(&offset_bv);
+    let element_ty = get_pointer_type(&*index_ty);
 
-    // Return the ADDRESS of the element (reference)
+    let size_in_bits = state.size_in_bits(&*element_ty).unwrap();
+    assert!(size_in_bits % 8 == 0);
+    let element_width = size_in_bits / 8;
+    let width_bv = state.bv_from_u32(size_in_bits, element_width);
+
+    // TODO: add a bounds check
+    let offset = width_bv.mul(&index_bv);
+    let element_addr_bv = array_base_bv.add(&offset);
+
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
@@ -255,20 +239,23 @@ fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     let call_args = get_args_exact(call, 1)?;
     // Get the tainted pointer object (this)
     let tainted_ptr_bv = get_operand(state, call_args[0])?;
+    let pointee_ty = get_pointer_type(&*get_operand_type(state, call_args[0]));
+    let pointee_width = state.size_in_bits(&*pointee_ty).unwrap();
+    let return_type = get_function_return_type(state, call);
+    let return_width = state.size_in_bits(&*return_type).unwrap();
     // Read the actual array pointer from the tainted pointer object
-    let array_ptr_bv = state.read(&tainted_ptr_bv, state.proj.pointer_size_bits())?;
-
-    // Return the array pointer (this is what (*sandbox_array) should return)
+    let array_ptr_bv = state.read(&tainted_ptr_bv, return_width)?;
     Ok(ReturnValue::Return(array_ptr_bv))
 }
 
 // TODO: make generic for any array size, any return type (currently hardcoded to int[4])
 /// HOOKED_ON: rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>
-fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, _call: &dyn IsCall) -> HookResult {
-    // Allocate concrete memory for a 4-element int array
-    let array_size_bits = 4 * 32_u64; // 4 integers * 32 bits each
+fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    let _call_args = get_args_exact(call, 1)?;
+    let return_type = get_function_return_type(state, call);
+    let get_pointer_type = get_pointer_type(&*return_type);
+    let array_size_bits = state.size_in_bits(&*get_pointer_type).unwrap();
     let concrete_array_ptr = state.allocate(array_size_bits);
-
     Ok(ReturnValue::Return(concrete_array_ptr))
 }
 
@@ -277,14 +264,30 @@ fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, _call: &dyn IsCall)
 /// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted_volatile, int, rlbox::rlbox_test_sandbox>::copy_and_verify<sandbox_array_index_checked()::$_0>
 fn copy_and_verify_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let args = get_args_exact(call, 1)?;
-    let tainted_bv = get_operand(state, args[0])?;
-    let value_bv = state.read(&tainted_bv, 32)?;
+    println!("==> ARGS: {:?}", args[0]);
+    let called_func = call.get_called_func();
+    println!("==> CALLED_FUNC: {:#?}", called_func);
 
+    // let tainted_bv = get_operand(state, args[0])?;
+    // let value_bv = state.read(&tainted_bv, 32)?;
+    // println!("==> ARGS: {:?}", args[0]);
     // TODO: WHERE TF IS THE LAMBDA????
+    unimplemented!()
 
-    Ok(ReturnValue::Return(value_bv))
+    // Ok(ReturnValue::Return(value_bv))
+}
+
+fn instruction_callback(
+    instr: &Instruction,
+    _exec_mgr: &haybale::ExecutionManager<DefaultBackend>,
+) -> haybale::Result<()> {
+    println!("insn: {}", instr);
+    Ok(())
 }
 
 pub fn add_hooks(config: &mut Config<DefaultBackend>) {
+    config
+        .callbacks
+        .add_instruction_callback(&instruction_callback);
     config.function_hooks.add_uc_hook(&hook_dispatch);
 }

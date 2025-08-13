@@ -3,6 +3,7 @@ mod checkers;
 mod demangle;
 mod exec;
 mod hooks;
+mod utils;
 use clap::Parser;
 use exec::symex_and_check;
 
