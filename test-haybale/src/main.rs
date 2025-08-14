@@ -1,6 +1,6 @@
 use haybale::Project;
+use haybale::config::Demangling;
 mod checkers;
-mod demangle;
 mod exec;
 mod hooks;
 mod utils;
@@ -23,10 +23,21 @@ fn main() {
     let loop_bound = 1000;
 
     let project = Project::from_bc_path(&args.binary).unwrap();
-    let (func, module) = project.get_func_by_name(&args.function).unwrap();
+    let (func, module) = project.get_func_by_name(&args.function).unwrap_or_else(|| {
+        eprintln!(
+            "Error: Function '{}' not found in the binary '{}'",
+            args.function, args.binary
+        );
+        std::process::exit(1);
+    });
+
+    // Detect demangling strategy and demangle the function name
+    let demangling = Demangling::autodetect(&project);
+    let demangled_func_name = demangling.maybe_demangle(&func.name);
+
     println!(
         "Analyzing function {:?} from module {:?}",
-        func.name, module.name
+        demangled_func_name, module.name
     );
     log::info!(
         "Function signature: {:?} -> {:?}",
