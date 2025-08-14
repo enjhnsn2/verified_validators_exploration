@@ -1,28 +1,11 @@
 use crate::utils::*;
-use either::Either;
 use haybale::backend::Backend;
 use haybale::function_hooks::generic_stub_hook;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
 use llvm_ir::TypeRef;
-use llvm_ir::{Constant, Name, Operand};
-// use llvm_ir::{Instruction, Type};
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
-
-/// Extract the function name from a dyn IsCall
-fn get_function_name(call: &dyn IsCall) -> Option<&str> {
-    match call.get_called_func() {
-        Either::Right(Operand::ConstantOperand(cref)) => match cref.as_ref() {
-            Constant::GlobalReference {
-                name: Name::Name(name),
-                ..
-            } => Some(name),
-            _ => None,
-        },
-        _ => None, // inline assembly
-    }
-}
 
 fn get_function_return_type(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> TypeRef {
     let func_name = get_function_name(call).unwrap();
@@ -30,7 +13,6 @@ fn get_function_return_type(state: &mut State<DefaultBackend>, call: &dyn IsCall
     func_def.return_type.clone()
 }
 
-/// EXAMPLE:   auto index = (*sandbox_array)[0].UNSAFE_unverified();
 // TODO: make generic for any type (currently hardcoded to int)
 fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 1)?;
@@ -43,7 +25,6 @@ fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) 
 
 // assignment where lhs is tainted.
 // what are the two arguments here?
-/// HOOKED_ON: rlbox::tainted_volatile::operator=
 fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
     let value_bv = get_operand(state, call_args[1])?;
@@ -211,3 +192,5 @@ pub fn add_hooks(config: &mut Config<DefaultBackend>) {
 
     // config.function_hooks.add_uc_hook(&default_uc_hook);
 }
+
+// TODO: notemplate hooks -> generic hooks

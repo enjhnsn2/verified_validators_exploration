@@ -1,3 +1,4 @@
+use either::Either;
 use haybale::Error;
 use haybale::State;
 use haybale::backend::Backend;
@@ -5,9 +6,9 @@ use haybale::backend::DefaultBackend;
 use haybale::function_hooks::IsCall;
 use llvm_ir::Type;
 use llvm_ir::TypeRef;
-// use llvm_ir::types::NamedStructDef;
+use llvm_ir::{Constant, Name, Operand};
 
-// TODO: in what scenario is addr_space not 0?
+// In what scenario is addr_space not 0?
 pub fn get_pointer_type(ty: &Type) -> TypeRef {
     match ty {
         Type::PointerType {
@@ -20,29 +21,6 @@ pub fn get_pointer_type(ty: &Type) -> TypeRef {
         _ => panic!("get_pointer_type: not a pointer type: {ty}"),
     }
 }
-
-// pub fn get_tainted_inner_type(
-//     state: &mut State<DefaultBackend>,
-//     tainted_bv: &llvm_ir::Operand,
-// ) -> TypeRef {
-//     let tainted_ty = get_operand_type(state, tainted_bv);
-//     let tainted_inner_ty = get_pointer_type(&*tainted_ty);
-//     if let Type::NamedStructType { name, .. } = &*tainted_inner_ty {
-//         match state
-//             .proj
-//             .get_named_struct_def(&name)
-//             .ok()
-//             .unwrap()
-//             .0
-//             .clone()
-//         {
-//             NamedStructDef::Defined(def) => def.clone(),
-//             _ => panic!("get_tainted_inner_type: not a named struct type: {tainted_inner_ty}"),
-//         }
-//     } else {
-//         panic!("get_tainted_inner_type: not a named struct type: {tainted_inner_ty}")
-//     }
-// }
 
 /// Get call arguments with exact count validation
 pub fn get_args_exact(
@@ -72,28 +50,16 @@ pub fn get_operand_type(state: &mut State<DefaultBackend>, arg: &llvm_ir::Operan
     state.type_of(arg)
 }
 
-// Remove all template arguments from a cpp demangled name
-// This function removes all angle brackets and their contents
-// pub fn erase_templates(demangled: &str) -> String {
-//     let mut result = String::new();
-//     let mut bracket_depth = 0;
-
-//     for ch in demangled.chars() {
-//         match ch {
-//             '<' => {
-//                 bracket_depth += 1;
-//             }
-//             '>' => {
-//                 bracket_depth -= 1;
-//             }
-//             _ => {
-//                 if bracket_depth == 0 {
-//                     result.push(ch);
-//                 }
-//                 // If bracket_depth > 0, we're inside a template, so skip this character
-//             }
-//         }
-//     }
-
-//     result
-// }
+/// Extract the function name from a dyn IsCall
+pub fn get_function_name(call: &dyn IsCall) -> Option<&str> {
+    match call.get_called_func() {
+        Either::Right(Operand::ConstantOperand(cref)) => match cref.as_ref() {
+            Constant::GlobalReference {
+                name: Name::Name(name),
+                ..
+            } => Some(name),
+            _ => None,
+        },
+        _ => None, // inline assembly
+    }
+}
