@@ -1,9 +1,6 @@
 use crate::checkers::CheckResult;
-use crate::utils::get_all_operands;
-use crate::utils::get_terminator_operands;
-use crate::utils::is_poison;
-use haybale::Error;
-use haybale::Project;
+use crate::utils::{get_all_operands, get_terminator_operands, is_poison};
+use haybale::{Error, Project};
 use llvm_ir::{instruction::Instruction, terminator::Terminator};
 
 const POISON_ERROR: &str = "CheckErr::Poison";

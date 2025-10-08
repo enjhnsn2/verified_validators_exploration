@@ -1,11 +1,7 @@
 use super::CheckResult;
 use crate::checkers::ExecutionTrace;
-use haybale::Error;
-use haybale::ExecutionManager;
-use haybale::State;
-use haybale::backend::DefaultBackend;
-use llvm_ir::Instruction;
-use llvm_ir::instruction::BinaryOp;
+use haybale::{Error, ExecutionManager, State, backend::DefaultBackend};
+use llvm_ir::{Instruction, instruction::BinaryOp};
 
 const DIV_BY_ZERO_ERROR: &str = "CheckErr::DividedByZero";
 

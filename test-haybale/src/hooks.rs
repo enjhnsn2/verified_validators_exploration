@@ -1,7 +1,10 @@
+// Reformatted imports
 use crate::utils::*;
-use haybale::backend::Backend;
-use haybale::function_hooks::generic_stub_hook;
-use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
+use haybale::{
+    Config, Error, ReturnValue, State,
+    backend::{Backend, DefaultBackend},
+    function_hooks::{IsCall, generic_stub_hook},
+};
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;

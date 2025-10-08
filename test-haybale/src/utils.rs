@@ -1,14 +1,12 @@
 use either::Either;
-use haybale::Error;
-use haybale::State;
-use haybale::backend::Backend;
-use haybale::backend::DefaultBackend;
-use haybale::function_hooks::IsCall;
-use llvm_ir::Type;
-use llvm_ir::TypeRef;
-use llvm_ir::instruction::Instruction;
-use llvm_ir::terminator::Terminator;
-use llvm_ir::{Constant, Name, Operand};
+use haybale::{
+    Error, State,
+    backend::{Backend, DefaultBackend},
+    function_hooks::IsCall,
+};
+use llvm_ir::{
+    Constant, Name, Operand, Type, TypeRef, instruction::Instruction, terminator::Terminator,
+};
 
 // In what scenario is addr_space not 0?
 pub fn get_pointer_type(ty: &Type) -> TypeRef {

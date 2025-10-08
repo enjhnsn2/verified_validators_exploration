@@ -1,14 +1,11 @@
 use super::CheckResult;
-// use crate::checkers::CheckErr;
 use crate::checkers::ExecutionTrace;
 use crate::utils::get_pointer_type;
-use haybale::Error;
-use haybale::ExecutionManager;
-use haybale::backend::Backend;
-use haybale::backend::DefaultBackend;
-use llvm_ir::Instruction;
-use llvm_ir::TypeRef;
-use llvm_ir::instruction::GetElementPtr;
+use haybale::{
+    Error, ExecutionManager,
+    backend::{Backend, DefaultBackend},
+};
+use llvm_ir::{Instruction, TypeRef, instruction::GetElementPtr};
 
 const OOB_ERROR: &str = "CheckErr::Oob";
 
