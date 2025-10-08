@@ -1,4 +1,3 @@
-// Reformatted imports
 use crate::utils::*;
 use haybale::{
     Config, Error, ReturnValue, State,
@@ -57,6 +56,34 @@ fn rlbox_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
+fn unfold_std_array(
+    state: &mut State<DefaultBackend>,
+    array_ty: &llvm_ir::Type,
+) -> (llvm_ir::TypeRef, usize) {
+    // let ty: llvm_ir::TypeRef = get_pointer_type_and_unfold(array_ty, state);
+
+    // Extract the type of the array
+    let unfolded_ty = get_pointer_type_and_unfold(array_ty, state);
+
+    // Ensure the type is a StructType
+    if let llvm_ir::Type::StructType { element_types, .. } = &*unfolded_ty {
+        // Extract the first element, which should be the array
+        if let llvm_ir::Type::ArrayType {
+            element_type,
+            num_elements,
+        } = &**element_types.get(0).unwrap()
+        {
+            println!(
+                "Element Type: {:?}, Number of Elements: {:?}",
+                element_type, num_elements
+            );
+            return (element_type.clone(), *num_elements);
+        }
+    }
+
+    panic!("unfold_std_array: Expected StructType with ArrayType as first element");
+}
+
 fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
     let array_base_bv = get_operand(state, call_args[0])?;
@@ -66,9 +93,12 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
 
     println!("==> ARRAY_TY: {:?}", array_ty);
     println!("==> INDEX_TY: {:?}", index_ty);
-    let element_ty = get_pointer_type(&index_ty);
+    // let element_ty = get_pointer_type_and_unfold(&array_ty, state);
+    // println!("{:?}", element_ty);
+    let (element_ty, _num_elements) = unfold_std_array(state, &*array_ty);
 
     let size_in_bits = state.size_in_bits(&element_ty).unwrap();
+    println!("size in bits: {:?}", size_in_bits);
     assert!(size_in_bits % 8 == 0);
     let element_width = size_in_bits / 8;
 

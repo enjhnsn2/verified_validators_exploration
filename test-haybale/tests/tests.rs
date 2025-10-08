@@ -22,7 +22,7 @@ fn run_and_assert_err(func_name: &str, expect_err: bool) {
     let project = Project::from_bc_path(binary_path).unwrap();
     let loop_bound = 1000;
     let results = symex_and_check(func_name, &project, loop_bound);
-    //assert_eq!(results.len(), 1, "Expected exactly one result"); // TODO: need to expand to handle any number of paths
+    assert!(results.len() > 0); // real code should always have at least 1 path through it
     for result in results {
         if expect_err {
             assert!(result.is_err(), "Expected Err, got: {:?}", result);

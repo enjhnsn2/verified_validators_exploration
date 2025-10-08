@@ -4,9 +4,12 @@ use haybale::{
     backend::{Backend, DefaultBackend},
     function_hooks::IsCall,
 };
+use llvm_ir::types::NamedStructDef;
 use llvm_ir::{
     Constant, Name, Operand, Type, TypeRef, instruction::Instruction, terminator::Terminator,
 };
+
+// pub fn unfold_named_struct_def
 
 // In what scenario is addr_space not 0?
 pub fn get_pointer_type(ty: &Type) -> TypeRef {
@@ -20,6 +23,15 @@ pub fn get_pointer_type(ty: &Type) -> TypeRef {
         }
         _ => panic!("get_pointer_type: not a pointer type: {ty}"),
     }
+}
+
+/// Retrieves the type of a pointer and unfolds it if it is a `NamedStructType`.
+pub fn get_pointer_type_and_unfold(ty: &Type, state: &State<DefaultBackend>) -> TypeRef {
+    let pointee_type = get_pointer_type(ty);
+    if let Type::NamedStructType { ref name } = *pointee_type {
+        return unfold_named_struct_def(name, state);
+    }
+    pointee_type
 }
 
 /// Get call arguments with exact count validation
@@ -165,4 +177,16 @@ pub fn is_poison(operand: &Operand) -> bool {
         }
     }
     false
+}
+
+/// Unfolds a named struct definition by calling `module.named_struct_def()` on it.
+pub fn unfold_named_struct_def(
+    struct_name: &str,
+    state: &State<DefaultBackend>,
+) -> llvm_ir::TypeRef {
+    let (def, _) = state.proj.get_named_struct_def(struct_name).unwrap();
+    match def {
+        NamedStructDef::Opaque => unimplemented!(),
+        NamedStructDef::Defined(typeref) => typeref.clone(),
+    }
 }
