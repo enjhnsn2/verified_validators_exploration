@@ -201,7 +201,15 @@ pub fn add_hooks(config: &mut Config<DefaultBackend>) {
         .function_hooks
         .add_cpp_notemplate("rlbox::rlbox_sandbox::create_sandbox", &generic_stub_hook);
 
-    // config.function_hooks.add_uc_hook(&default_uc_hook);
+    config
+        .function_hooks
+        .add_cpp_notemplate("rlbox::rlbox_sandbox::destroy_sandbox", &generic_stub_hook);
+
+    config
+        .function_hooks
+        .add_cpp_notemplate("rlbox::rlbox_sandbox::~rlbox_sandbox", &generic_stub_hook);
+
+    // config.function_hooks.add_uc_hook(&generic_stub_hook);
 }
 
 // TODO: notemplate hooks -> generic hooks
