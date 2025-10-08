@@ -130,6 +130,13 @@ pub fn get_all_operands(instr: &Instruction) -> Vec<&Operand> {
         Instruction::BitCast(bitcast) => vec![&bitcast.operand],
         Instruction::ZExt(zext) => vec![&zext.operand],
         Instruction::SExt(sext) => vec![&sext.operand],
+        Instruction::FAdd(fadd) => vec![&fadd.operand0, &fadd.operand1],
+        Instruction::FSub(fsub) => vec![&fsub.operand0, &fsub.operand1],
+        Instruction::FMul(fmul) => vec![&fmul.operand0, &fmul.operand1],
+        Instruction::FDiv(fdiv) => vec![&fdiv.operand0, &fdiv.operand1],
+        Instruction::FRem(frem) => vec![&frem.operand0, &frem.operand1],
+        Instruction::FNeg(fneg) => vec![&fneg.operand],
+        Instruction::Freeze(freeze) => vec![&freeze.operand],
         _ => unimplemented!("{:?}", instr), // Catch-all for unhandled instructions
     }
 }
