@@ -4,6 +4,7 @@ use crate::checkers::check_trace;
 use crate::checkers::div_by_zero::monitor_div_by_zero;
 use crate::checkers::oob::monitor_oob;
 use crate::hooks::add_hooks;
+use crate::preprocess::preprocess_func;
 use haybale::{Config, Project, backend::DefaultBackend, symex_function};
 // TODO: get source names for reporting bugs.
 //  Example code that should help
@@ -34,6 +35,21 @@ pub fn symex_func_and_monitor<'a>(
 }
 
 pub fn symex_and_check(func_name: &str, project: &Project, loop_bound: usize) -> Vec<CheckResult> {
+    // This should do something else?
+    // if preprocess_func_and_check(&args.function, &project){
+    //     println!("Preprocessing failed!");
+    //     std::process::exit(0);
+    // }
+    // if preprocess_func_and_check(&args.function, &project){
+    //     return vec![CheckResult::Err(Error::OtherError(POISON_ERROR.to_string()))]
+    // }
+    match preprocess_func(func_name, &project) {
+        Ok(_) => (),
+        Err(err) => return vec![Err(err)],
+    }
+
+    // if preprocess_func(&args.function, &project)
+
     let traces = symex_func_and_monitor(func_name, project, loop_bound);
     traces.iter().map(|trace| check_trace(trace)).collect()
 }

@@ -3,9 +3,11 @@ use haybale::config::Demangling;
 mod checkers;
 mod exec;
 mod hooks;
+mod preprocess;
 mod utils;
 use clap::Parser;
 use exec::symex_and_check;
+// use preprocess::preprocess_func_and_check;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]

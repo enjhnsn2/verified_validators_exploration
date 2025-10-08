@@ -43,6 +43,11 @@ fn test_sandbox_array_index_unchecked_safe() {
 }
 
 #[test]
+fn test_sandbox_primitive_array_index_unchecked_unsafe() {
+    run_and_assert_err("sandbox_primitive_array_index_unchecked_unsafe", true);
+}
+
+#[test]
 fn test_sandbox_array_index_checked() {
     run_and_assert_err("sandbox_array_index_checked", false);
 }

@@ -2,21 +2,18 @@ use crate::utils::*;
 use haybale::backend::Backend;
 use haybale::function_hooks::generic_stub_hook;
 use haybale::{Config, Error, ReturnValue, State, backend::DefaultBackend, function_hooks::IsCall};
-use llvm_ir::TypeRef;
 
 // Type alias for cleaner function signatures
 type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
 
-fn get_function_return_type(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> TypeRef {
-    let func_name = get_function_name(call).unwrap();
-    let (func_def, _) = state.proj.get_func_by_name(func_name).unwrap();
-    func_def.return_type.clone()
-}
-
 // TODO: make generic for any type (currently hardcoded to int)
+// does nothing for pointer, returns symbolic for anything else?
 fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+    println!(">>> UNSAFE_UNVERIFIED");
     let call_args = get_args_exact(call, 1)?;
+    println!("==> CALL_ARGS: {:?}", call_args);
     let tainted_bv = get_operand(state, call_args[0])?;
+
     // Read the actual integer value from the tainted_volatile object
     let value_bv = state.read(&tainted_bv, 32)?;
 
@@ -28,7 +25,6 @@ fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) 
 fn rlbox_assign_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
     let value_bv = get_operand(state, call_args[1])?;
-
     Ok(ReturnValue::Return(value_bv)) // I think we just return rhs?
 }
 
@@ -53,27 +49,19 @@ fn rlbox_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     // TODO: add a bounds check?
     // TODO: overflow checks? should assert that offset is positive and less than array size
 
-    let offset = width_bv.mul(&loaded_index_bv);
-    let extended_offset = offset.uext(array_base_bv.get_width() - offset.get_width());
-    let element_addr_bv = array_base_bv.add(&extended_offset);
-
-    log::debug!(
-        "rlbox::operator[]: {:?} + {:?} * {:?}",
-        array_base_bv,
-        width_bv,
-        loaded_index_bv
-    );
+    let element_addr_bv = compute_index_addr(&array_base_bv, &loaded_index_bv, &width_bv);
 
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
 fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 2)?;
-
     let array_base_bv = get_operand(state, call_args[0])?;
+    let array_ty = get_operand_type(state, call_args[0]);
     let index_bv = get_operand(state, call_args[1])?;
     let index_ty = get_operand_type(state, call_args[1]);
 
+    println!("==> ARRAY_TY: {:?}", array_ty);
     println!("==> INDEX_TY: {:?}", index_ty);
     let element_ty = get_pointer_type(&index_ty);
 
@@ -88,21 +76,11 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
     // TODO: add a bounds check?
     // TODO: overflow checks? should assert that offset is positive and less than array size
 
-    let offset = width_bv.mul(&loaded_index_bv);
-    let extended_offset = offset.uext(array_base_bv.get_width() - offset.get_width());
-    let element_addr_bv = array_base_bv.add(&extended_offset);
-
-    log::debug!(
-        "std::array::operator[]: {:?} + {:?} * {:?}",
-        array_base_bv,
-        width_bv,
-        loaded_index_bv
-    );
+    let element_addr_bv = compute_index_addr(&array_base_bv, &loaded_index_bv, &width_bv);
 
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
-/// HOOKED_ON: rlbox::tainted_base_impl<rlbox::tainted, int (*) [4], rlbox::rlbox_test_sandbox>::operator*
 fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 1)?;
     // Get the tainted pointer object (this)
