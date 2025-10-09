@@ -10,17 +10,15 @@ type HookResult = Result<ReturnValue<<DefaultBackend as Backend>::BV>, Error>;
 
 // TODO: make generic for any type (currently hardcoded to int)
 // does nothing for pointer, returns symbolic for anything else?
-fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
-    println!(">>> UNSAFE_UNVERIFIED");
-    let call_args = get_args_exact(call, 1)?;
-    println!("==> CALL_ARGS: {:?}", call_args);
-    let tainted_bv = get_operand(state, call_args[0])?;
+// fn unsafe_unverified_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
+//     let call_args = get_args_exact(call, 1)?;
+//     let tainted_bv = get_operand(state, call_args[0])?;
 
-    // Read the actual integer value from the tainted_volatile object
-    let value_bv = state.read(&tainted_bv, 32)?;
+//     // Read the actual integer value from the tainted_volatile object
+//     let value_bv = state.read(&tainted_bv, 32)?;
 
-    Ok(ReturnValue::Return(value_bv))
-}
+//     Ok(ReturnValue::Return(value_bv))
+// }
 
 // assignment where lhs is tainted.
 // what are the two arguments here?
@@ -95,7 +93,7 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
     println!("==> INDEX_TY: {:?}", index_ty);
     // let element_ty = get_pointer_type_and_unfold(&array_ty, state);
     // println!("{:?}", element_ty);
-    let (element_ty, _num_elements) = unfold_std_array(state, &*array_ty);
+    let (element_ty, num_elements) = unfold_std_array(state, &*array_ty);
 
     let size_in_bits = state.size_in_bits(&element_ty).unwrap();
     println!("size in bits: {:?}", size_in_bits);
@@ -106,8 +104,15 @@ fn std_array_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) ->
 
     let loaded_index_bv = state.read(&index_bv, size_in_bits)?;
 
-    // TODO: add a bounds check?
+    // TODO: add a bounds check? ensure that index is >= 0 and < array size
+    println!("Index bv: {:?}", index_bv);
     // TODO: overflow checks? should assert that offset is positive and less than array size
+
+    // .assert();
+    //  if state().sat_with_extra_constraints(index_bv.ugte(num_elements)).unwrap() {
+    //             println!("OOB ERROR!!!!!!");
+    //             return Err(Error::OtherError(OOB_ERROR.to_string()));
+    //         }
 
     let element_addr_bv = compute_index_addr(&array_base_bv, &loaded_index_bv, &width_bv);
 
@@ -125,7 +130,6 @@ fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     Ok(ReturnValue::Return(array_ptr_bv))
 }
 
-/// HOOKED_ON: rlbox::rlbox_sandbox<rlbox::rlbox_test_sandbox>::malloc_in_sandbox<int [4]>
 fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let _call_args = get_args_exact(call, 1)?;
     let return_type = get_function_return_type(state, call);
@@ -169,7 +173,7 @@ pub fn add_hooks(config: &mut Config<DefaultBackend>) {
 
     config.function_hooks.add_cpp_notemplate(
         "rlbox::tainted_base_impl::UNSAFE_unverified",
-        &unsafe_unverified_hook,
+        &generic_stub_hook,
     );
     config
         .function_hooks

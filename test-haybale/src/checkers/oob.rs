@@ -33,12 +33,14 @@ fn size_of_aggregate(
     em.state().bv_from_u32(size_in_bytes, width)
 }
 
+// Would love to print solver state
 fn compute_gep_offset<'a>(
     ty: &TypeRef,
     em: &ExecutionManager<'a, DefaultBackend>,
     i: &'a GetElementPtr,
 ) -> <DefaultBackend as Backend>::BV {
     let bvbase = em.state().operand_to_bv(&i.address).unwrap();
+    println!("compute_gep_offset: {:?}", &i.indices);
     let offset = ExecutionManager::<DefaultBackend>::get_offset_recursive(
         em.state(),
         i.indices.iter(),
@@ -67,10 +69,14 @@ pub fn monitor_oob<'a>(
         let offset = compute_gep_offset(&ty, em, i);
         // calculate size of GEP aggregate as BV
         let sz_bv = size_of_aggregate(&ty, em, offset.get_width());
-
+        let x = em.state().get_a_solution_for_bv(&offset)?;
         // check if its possible that offset >= size of aggregate
-        offset.ugte(&sz_bv).assert();
-        if em.state().sat().unwrap() {
+        if em
+            .state()
+            .sat_with_extra_constraints(&[offset.ugte(&sz_bv)])
+            .unwrap()
+        {
+            println!("OOB ERROR!!!!!!");
             return Err(Error::OtherError(OOB_ERROR.to_string()));
         }
     }

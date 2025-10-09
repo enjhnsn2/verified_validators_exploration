@@ -78,6 +78,14 @@ int trivial_array_read() {
 }
 
 // should be safe
+int repeated_array_read() {
+  int32_t host_array[4] = { 100, 200, 300, 400 };
+  int32_t x = host_array[1];
+  int32_t y = host_array[2];
+  return x + y;
+}
+
+// should be safe
 int trivial_array_read_2d() {
  int host_array[2][3] = { {1, 4, 2}, {3, 6, 8} };  
  host_array[1][1];
