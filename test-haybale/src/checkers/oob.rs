@@ -40,7 +40,7 @@ fn compute_gep_offset<'a>(
     i: &'a GetElementPtr,
 ) -> <DefaultBackend as Backend>::BV {
     let bvbase = em.state().operand_to_bv(&i.address).unwrap();
-    println!("compute_gep_offset: {:?}", &i.indices);
+    // println!("compute_gep_offset: {:?}", &i.indices);
     let offset = ExecutionManager::<DefaultBackend>::get_offset_recursive(
         em.state(),
         i.indices.iter(),
@@ -69,14 +69,13 @@ pub fn monitor_oob<'a>(
         let offset = compute_gep_offset(&ty, em, i);
         // calculate size of GEP aggregate as BV
         let sz_bv = size_of_aggregate(&ty, em, offset.get_width());
-        let x = em.state().get_a_solution_for_bv(&offset)?;
         // check if its possible that offset >= size of aggregate
         if em
             .state()
             .sat_with_extra_constraints(&[offset.ugte(&sz_bv)])
             .unwrap()
         {
-            println!("OOB ERROR!!!!!!");
+            // println!("OOB ERROR!!!!!!");
             return Err(Error::OtherError(OOB_ERROR.to_string()));
         }
     }

@@ -258,7 +258,7 @@ int sandbox_array_index_unchecked_safe() {
   host_array[index];
 
   // Cleanup
-  // sandbox.destroy_sandbox();
+  sandbox.destroy_sandbox();
   
   return 0;
 }

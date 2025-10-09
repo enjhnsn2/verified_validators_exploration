@@ -98,7 +98,8 @@ pub fn compute_index_addr(
     index: &<DefaultBackend as Backend>::BV,
     elem_width: &<DefaultBackend as Backend>::BV,
 ) -> <DefaultBackend as Backend>::BV {
-    let offset = elem_width.mul(index);
+    let extended_width = elem_width.uext(index.get_width() - elem_width.get_width());
+    let offset = extended_width.mul(index);
     let extended_offset = offset.uext(base.get_width() - offset.get_width());
     base.add(&extended_offset)
 }

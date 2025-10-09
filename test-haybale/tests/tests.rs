@@ -1,8 +1,9 @@
+use haybale::Error;
 use haybale::Project;
 use std::path::Path;
 use std::sync::Once;
+use test_haybale::checkers::CheckResult;
 use test_haybale::exec::symex_and_check;
-
 // TODO: currently these tests just make sure that negative tests get an error, and positive tests get an ok
 // we should probably check that they're actually getting the right errors
 
@@ -32,92 +33,144 @@ fn run_and_assert_err(func_name: &str, expect_err: bool) {
     }
 }
 
+/// Helper to run symex_and_check and assert the result matches the expected slice
+fn run_and_assert_results(func_name: &str, expected_results: &[CheckResult]) {
+    setup_logger();
+    let binary_path = Path::new("../examples/host.bc");
+    let project = Project::from_bc_path(binary_path).unwrap();
+    let loop_bound = 1000;
+    let results = symex_and_check(func_name, &project, loop_bound);
+    assert_eq!(
+        results, expected_results,
+        "Results did not match expected slice.\nExpected: {:?}\nGot: {:?}",
+        expected_results, results
+    );
+}
+
 #[test]
 fn test_sandbox_array_index_unchecked_unsafe() {
-    run_and_assert_err("sandbox_array_index_unchecked_unsafe", true);
+    run_and_assert_results(
+        "sandbox_array_index_unchecked_unsafe",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
 fn test_sandbox_array_index_unchecked_safe() {
-    run_and_assert_err("sandbox_array_index_unchecked_safe", false);
+    run_and_assert_results("sandbox_array_index_unchecked_safe", &[Ok(())]);
 }
 
 #[test]
 fn test_sandbox_primitive_array_index_unchecked_unsafe() {
-    run_and_assert_err("sandbox_primitive_array_index_unchecked_unsafe", true);
+    run_and_assert_results(
+        "sandbox_primitive_array_index_unchecked_unsafe",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
 fn test_sandbox_array_index_checked() {
-    run_and_assert_err("sandbox_array_index_checked", false);
+    run_and_assert_results("sandbox_array_index_checked", &[Ok(())]);
 }
 
 #[test]
 fn test_basic_oob_read() {
-    run_and_assert_err("basic_oob_read", true);
+    run_and_assert_results(
+        "basic_oob_read",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
 fn test_basic_oob_write() {
-    run_and_assert_err("basic_oob_write", true);
+    run_and_assert_results(
+        "basic_oob_write",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
 fn test_basic_oob_read_from_arg() {
-    run_and_assert_err("basic_oob_read_from_arg", true);
+    run_and_assert_results(
+        "basic_oob_read_from_arg",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
 fn test_trivial_array_read() {
-    run_and_assert_err("trivial_array_read", false);
+    run_and_assert_results("trivial_array_read", &[Ok(())]);
 }
 
 #[test]
 fn test_repeaated_array_read() {
-    run_and_assert_err("repeated_array_read", false);
+    run_and_assert_results("repeated_array_read", &[Ok(())]);
 }
 
 #[test]
 fn test_trivial_array_read_2d() {
-    run_and_assert_err("trivial_array_read_2d", false);
+    run_and_assert_results("trivial_array_read_2d", &[Ok(())]);
 }
 
 #[test]
 fn test_trivial_struct_read() {
-    run_and_assert_err("trivial_struct_read", false);
+    run_and_assert_results("trivial_struct_read", &[Ok(())]);
 }
 
 #[test]
 fn test_trivial_struct_read_nested() {
-    run_and_assert_err("trivial_struct_read_nested", false);
+    run_and_assert_results("trivial_struct_read_nested", &[Ok(())]);
 }
 
 #[test]
 fn test_basic_null_read() {
-    run_and_assert_err("basic_null_read", true);
+    run_and_assert_results(
+        "basic_null_read",
+        &[Err(Error::OtherError(
+            "CheckErr::DereferencedNull".to_string(),
+        ))],
+    );
 }
 
 #[test]
 fn test_basic_null_write() {
-    run_and_assert_err("basic_null_write", true);
+    run_and_assert_results(
+        "basic_null_write",
+        &[Err(Error::OtherError(
+            "CheckErr::DereferencedNull".to_string(),
+        ))],
+    );
 }
 
 #[test]
 fn test_basic_null_write2() {
-    run_and_assert_err("basic_null_write2", true);
+    run_and_assert_results(
+        "basic_null_write2",
+        &[Err(Error::OtherError(
+            "CheckErr::DereferencedNull".to_string(),
+        ))],
+    );
 }
 
 #[test]
 fn test_basic_div_by_zero() {
-    run_and_assert_err("basic_div_by_zero", true);
+    run_and_assert_results(
+        "basic_div_by_zero",
+        &[Err(Error::OtherError("CheckErr::Poison".to_string()))],
+    );
 }
 
 #[test]
 fn test_basic_div_by_zero2() {
-    run_and_assert_err("basic_div_by_zero2", true);
+    run_and_assert_results(
+        "basic_div_by_zero2",
+        &[Err(Error::OtherError(
+            "CheckErr::DividedByZero".to_string(),
+        ))],
+    );
 }
 
 #[test]
 fn test_basic_div_by_zero_guarded() {
-    run_and_assert_err("basic_div_by_zero_guarded", false);
+    run_and_assert_results("basic_div_by_zero_guarded", &[Ok(()), Ok(())]);
 }
