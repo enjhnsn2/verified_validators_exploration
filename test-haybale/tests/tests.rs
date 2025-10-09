@@ -73,6 +73,11 @@ fn test_trivial_array_read() {
 }
 
 #[test]
+fn test_repeaated_array_read() {
+    run_and_assert_err("repeated_array_read", false);
+}
+
+#[test]
 fn test_trivial_array_read_2d() {
     run_and_assert_err("trivial_array_read_2d", false);
 }
