@@ -5,6 +5,8 @@ use llvm_ir::{instruction::Instruction, terminator::Terminator};
 
 const POISON_ERROR: &str = "CheckErr::Poison";
 
+/// Simple preprocessing step to check for poison values in instructions and terminators
+/// These poison values mess up the symex, and shouldn't be present in well-formed code
 fn preprocess_instr(instr: &Instruction) -> CheckResult {
     let operands = get_all_operands(instr);
     for operand in operands.iter() {
@@ -16,6 +18,7 @@ fn preprocess_instr(instr: &Instruction) -> CheckResult {
     CheckResult::Ok(())
 }
 
+/// Check for poison values in terminators. See `preprocess_instr` for details.
 fn preprocess_terminator(term: &Terminator) -> CheckResult {
     let operands = get_terminator_operands(term);
     for operand in operands.iter() {
@@ -27,6 +30,8 @@ fn preprocess_terminator(term: &Terminator) -> CheckResult {
     CheckResult::Ok(())
 }
 
+/// Preprocess a function by checking all its instructions and terminators for poison values
+/// See `preprocess_instr` and `preprocess_terminator` for details.
 pub fn preprocess_func(func_name: &str, project: &Project) -> CheckResult {
     let (func, _) = project
         .get_func_by_name(func_name)
@@ -42,11 +47,3 @@ pub fn preprocess_func(func_name: &str, project: &Project) -> CheckResult {
 
     CheckResult::Ok(())
 }
-
-// pub fn preprocess_func_and_check(func_name: &str, project: &Project) -> bool {
-//     match preprocess_func(func_name, project) {
-//         CheckResult::Ok(_) => false,
-//         CheckResult::Err(Error::OtherError(err)) if err == POISON_ERROR => true,
-//         CheckResult::Err(err) => panic!("Unexpected error: {:?}", err),
-//     }
-// }

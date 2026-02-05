@@ -9,9 +9,8 @@ use llvm_ir::{
     Constant, Name, Operand, Type, TypeRef, instruction::Instruction, terminator::Terminator,
 };
 
-// pub fn unfold_named_struct_def
-
 // In what scenario is addr_space not 0?
+/// Get the type a pointer is pointing to. e.g., for `i32*`, returns `i32`.
 pub fn get_pointer_type(ty: &Type) -> TypeRef {
     match ty {
         Type::PointerType {

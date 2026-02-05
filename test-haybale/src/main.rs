@@ -54,7 +54,7 @@ fn main() {
     }
 
     let trace = symex_and_check(&args.function, &project, loop_bound);
-    println!("trace: {:?}", trace);
+    println!("results: {:?}", trace);
     // if trace.len() == 1 {
     //     log::info!("We found 1 possible path");
     //     log::info!("Path: {:?}", trace[0].0);

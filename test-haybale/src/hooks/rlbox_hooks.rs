@@ -1,3 +1,4 @@
+use crate::exec::symex_simple;
 use crate::hooks::utils::*;
 use crate::utils::*;
 use haybale::{
@@ -5,42 +6,63 @@ use haybale::{
     backend::DefaultBackend,
     function_hooks::{IsCall, generic_stub_hook},
 };
+use llvm_ir::Name;
 // Wip
-// TODO: make generic for any return type (currently hardcoded to int)
-// TODO: figure out how to process the lambda?
-// The issue here is that the lambda is not actually an argument, but has already been monomorphized out so that there is a monomorphic `copy_and_verify` that we call
-// Solution: we should just not instrument copy_and_verify and let it do its own thing
+// TODO: what to do with lambda? Can we recursively interpret it?
 fn copy_and_verify_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let args = get_args_exact(call, 1)?;
-    println!("==> ARGS: {:?}", args[0]);
     let arg_ty = get_operand_type(state, args[0]);
     let unfolded_arg = get_pointer_type_and_unfold(&*arg_ty, state);
-    println!("==> Unfolded ARG type: {:?}", unfolded_arg);
     let called_func = call.get_called_func();
 
     let (cav_name, _cav_ty) = unfold_function_reference(&called_func).unwrap();
     // need to strip off % at beginning
     let cav_name = cav_name.trim_start_matches('%');
-
     let (cav, _) = state.get_func_by_name(cav_name).unwrap();
-
     // get last instruction of cav
     let last_instr = cav.basic_blocks.last().unwrap().instrs.last().unwrap();
-    println!("==> CAV last instruction: {:#?}", last_instr);
+    // println!("==> CAV last instruction: {:#?}", last_instr);
     if let llvm_ir::Instruction::Call(call) = last_instr {
         // let ret_ty = &call.get_return_type();
         let (lambda_name, lambda_ty) = unfold_function_reference(&call.get_called_func()).unwrap();
-        println!("==> Lambda: {} {:?}", lambda_name, lambda_ty);
+        println!("==> Lambda: {} {:#?}", lambda_name, lambda_ty);
         let lambda_name = lambda_name.trim_start_matches('%');
         let (lambda, _) = state.get_func_by_name(lambda_name).unwrap();
-        println!("==> Lambda: {:#?}", lambda);
-        // solve for input?
+        for bb in lambda.basic_blocks.iter() {
+            for insn in &bb.instrs {
+                println!("Lambda insn: {}", insn);
+            }
+            println!("Lambda terminator: {}", bb.term);
+        }
+        let lambda_traces = symex_simple(lambda_name, &state.proj);
+        // println!("==> Lambda traces: {:?}", &lambda_traces);
+        // Just return disjunction and hope it works?
+
+        // is this the right ret_size?
+        // Will fail if opaque type
+        let ret_size = state.size_in_bits(&state.type_of(call)).unwrap();
+        let bv = state.new_bv_with_name(Name::from("generic_stub_hook_retval"), ret_size)?;
+
+        // Create a fresh bv for the return value
+        for (path, state) in lambda_traces {
+            println!("--- Path: {:?}", path);
+            println!(
+                "Backtracking points: {:?}",
+                state.count_backtracking_points()
+            );
+            // match &path {
+            //     Ok(ReturnValue::Return(value_bv)) => {
+            //         // println!("--- Returned bv: {:?}", value_bv);
+            //         bv._eq(value_bv).assert();
+            //     }
+            //     _ => unimplemented!(),
+            // }
+            // println!("--- Final state: {:?}", state);
+        }
+    } else {
+        unimplemented!()
     }
 
-    // println!("global allocations: {:?}", state.proj.all_functions());
-    // for (func,_) in state.proj.all_functions(){
-    //     println!("{:?}", func.name);
-    // }
     unimplemented!()
 
     // Ok(ReturnValue::Return(value_bv))
@@ -80,6 +102,8 @@ fn rlbox_index_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     Ok(ReturnValue::Return(element_addr_bv))
 }
 
+/// Hook for rlbox::tainted_base_impl::operator*
+/// Reads the actual pointer from the tainted pointer object and returns it.
 fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let call_args = get_args_exact(call, 1)?;
     // Get the tainted pointer object (this)
@@ -91,6 +115,8 @@ fn rlbox_deref_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> Hoo
     Ok(ReturnValue::Return(array_ptr_bv))
 }
 
+/// Hook for rlbox::malloc
+/// Simply allocates concrete memory of the right size and returns a pointer to it.
 fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) -> HookResult {
     let _call_args = get_args_exact(call, 1)?;
     let return_type = get_function_return_type(state, call);
@@ -100,14 +126,15 @@ fn malloc_in_sandbox_hook(state: &mut State<DefaultBackend>, call: &dyn IsCall) 
     Ok(ReturnValue::Return(concrete_array_ptr))
 }
 
+/// Add hooks for rlbox Api.
+/// Incomplete, and many functions are still not hooked.
 pub fn add_rlbox_hooks(config: &mut Config<DefaultBackend>) {
-    config.function_hooks.add_cpp_notemplate(
-        "rlbox::tainted_base_impl::UNSAFE_unverified",
-        &generic_stub_hook,
-    );
+    // hooks for basic operators (assignments)
     config
         .function_hooks
         .add_cpp_notemplate("rlbox::tainted_volatile::operator=", &rlbox_assign_hook);
+
+    // hooks for basic memory operations
     config
         .function_hooks
         .add_cpp_notemplate("rlbox::tainted_base_impl::operator[]", &rlbox_index_hook);
@@ -118,10 +145,8 @@ pub fn add_rlbox_hooks(config: &mut Config<DefaultBackend>) {
         "rlbox::rlbox_sandbox::malloc_in_sandbox",
         &malloc_in_sandbox_hook,
     );
-    config.function_hooks.add_cpp_notemplate(
-        "rlbox::tainted_base_impl::copy_and_verify",
-        &copy_and_verify_hook,
-    );
+
+    // Sandbox constructors and destructors
     config
         .function_hooks
         .add_cpp_notemplate("rlbox::rlbox_sandbox::rlbox_sandbox", &generic_stub_hook);
@@ -134,4 +159,14 @@ pub fn add_rlbox_hooks(config: &mut Config<DefaultBackend>) {
     config
         .function_hooks
         .add_cpp_notemplate("rlbox::rlbox_sandbox::~rlbox_sandbox", &generic_stub_hook);
+
+    // Most complicated hooks - validation
+    config.function_hooks.add_cpp_notemplate(
+        "rlbox::tainted_base_impl::copy_and_verify",
+        &copy_and_verify_hook,
+    );
+    config.function_hooks.add_cpp_notemplate(
+        "rlbox::tainted_base_impl::UNSAFE_unverified",
+        &generic_stub_hook,
+    );
 }

@@ -232,8 +232,9 @@ int sandbox_primitive_array_index_unchecked_unsafe() {
   return 0;
 }
 
-// This function should not flag unsafety. 
-// We don't check the results from the sandbox, but we know the index is valid
+// This function should flag unsafety based on the memory modeo
+// Multithreaded mode - unsafe
+// Single-threaded - safe
 int sandbox_array_index_unchecked_safe() {
   // Create and initialize the sandbox
   rlbox_sandbox_guest sandbox;

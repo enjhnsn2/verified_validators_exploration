@@ -57,7 +57,10 @@ fn test_sandbox_array_index_unchecked_unsafe() {
 
 #[test]
 fn test_sandbox_array_index_unchecked_safe() {
-    run_and_assert_results("sandbox_array_index_unchecked_safe", &[Ok(())]);
+    run_and_assert_results(
+        "sandbox_array_index_unchecked_safe",
+        &[Err(Error::OtherError("CheckErr::Oob".to_string()))],
+    );
 }
 
 #[test]
